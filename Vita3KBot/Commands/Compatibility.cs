@@ -6,6 +6,7 @@ using System.Text;
 using Discord;
 using Discord.Commands;
 
+using APIClients;
 using Octokit;
 
 namespace Vita3KBot.Commands {
@@ -24,7 +25,7 @@ namespace Vita3KBot.Commands {
                 "Intro",
                 "Crash",
                 "Nothing",
-                
+
                 // Secondary, display if nothing else.
                 "Slow",
                 "Black Screen",
@@ -40,7 +41,7 @@ namespace Vita3KBot.Commands {
                 "Savedata Bug",
                 "Trophy Bug",
                 "Networking Bug",
-                
+
                 // Invalid
                 "Invalid",
                 "Unknown",
@@ -51,10 +52,10 @@ namespace Vita3KBot.Commands {
             public readonly string Status;
             public string LatestComment;
             public string LatestProfileImage;
-            
+
             public async Task FetchCommentInfo(GitHubClient client) {
                 if (_issue.Comments == 0) return;
-                
+
                 var comments = await client.Issue.Comment.GetAllForIssue("Vita3K",
                     IsHomebrew ? HomebrewRepo : CommercialRepo, _issue.Number);
                 var lastComment = comments[_issue.Comments - 1];
@@ -85,7 +86,7 @@ namespace Vita3KBot.Commands {
                 LatestProfileImage = "";
             }
         }
-        
+
         [Command("compat")]
         public async Task Compatability([Remainder]string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
@@ -102,7 +103,7 @@ namespace Vita3KBot.Commands {
                 case 0:
                     await ReplyAsync("No games found for search term " + keyword + ".");
                     break;
-                
+
                 case 1: {
                     var issue = result.Items.First();
                     var info = new TitleInfo(issue);
@@ -111,14 +112,14 @@ namespace Vita3KBot.Commands {
                         .WithTitle("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
                         .WithDescription("Status: **" + info.Status + "**\n\n" + info.LatestComment)
                         .WithColor(Color.Red)
-                        .WithUrl(issue.Url)
+                        .WithUrl(issue.HtmlUrl)
                         .WithCurrentTimestamp();
-                    if (info.LatestProfileImage.Length > 0) builder.WithImageUrl(info.LatestProfileImage);
-                    
+                    if (info.LatestProfileImage.Length > 0) builder.WithThumbnailUrl(info.LatestProfileImage);
+
                     await ReplyAsync("", false, builder.Build());
                     break;
                 }
-                
+
                 default: {
                     var description = new StringBuilder();
                     for (var a = 0; a < Math.Min(result.Items.Count, MaxItemsToDisplay); a++) {
@@ -128,17 +129,31 @@ namespace Vita3KBot.Commands {
                                            + "): **" + info.Status + "**\n");
                     }
                     if (result.Items.Count > MaxItemsToDisplay) description.Append("...");
-                    
+
                     var builder = new EmbedBuilder()
                         .WithTitle("Found " + result.Items.Count + " issues for search term " + keyword + ".")
                         .WithDescription(description.ToString())
                         .WithColor(Color.Orange)
                         .WithCurrentTimestamp();
-                    
+
                     await ReplyAsync("", false, builder.Build());
                     break;
                 }
             }
+        }
+
+        [Command("latest")]
+        private async Task App()
+        {
+            await ReplyAsync(embed: AppveyorClient.GetLatestBuild().Result);
+        }
+
+        [Command("update")]
+        private async Task Update([Remainder] string titleid)
+        {
+            //TODO: filter titleID to match valid IDs (e.g. PCSE00000 or PCSB00000) using a regex
+            PSNClient.title_id = titleid.ToUpper();
+            await ReplyAsync(embed: PSNClient.GetTitlePatch());
         }
     }
 }

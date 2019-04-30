@@ -1,0 +1,123 @@
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
+
+using Discord;
+using Newtonsoft.Json;
+
+using GamePatchesClient.POCOs;
+
+namespace APIClients {
+    public static class PSNClient {
+        public static string title_id { get; set; }
+
+        public static Embed GetTitlePatch() {
+            string url = ConvertTitleIDToHash();
+
+            // Needed to bypass certificate errors
+            ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
+
+            var noUpdatesEmbed = new EmbedBuilder
+            {
+                Title = title_id,
+                Description = $"No updates were found for {title_id}",
+                Color = Color.Orange
+            };
+
+            XmlDocument xmlDoc = new XmlDocument();
+            // Almost all games with no updates don't return an empty XML so i'm forced to do this hack
+            // We also can't differentiate between valid IDs and games with no updates
+            try { xmlDoc.Load(url); }
+            catch (WebException) { return noUpdatesEmbed.Build(); }
+            catch (XmlException) { return noUpdatesEmbed.Build(); }
+
+            XmlSerializer serializer = new XmlSerializer(typeof(TitlePatch));
+
+            using (XmlReader reader = XmlReader.Create(url))
+            {
+                TitlePatch patch = (TitlePatch)serializer.Deserialize(reader);
+
+                var pkgs = patch.Tag.Package;
+                var title = pkgs.Select(p => p.Sfo?.Title).LastOrDefault(t => !string.IsNullOrEmpty(t));
+                var Covers = JsonConvert.DeserializeObject<Root>(File.ReadAllText("./APIClients/GamePatchesClient/Covers.json")); // Relevant to Bot.cs
+
+                string coverURL = string.Empty;
+                for (int i = 0; i < Covers.IDs.Length; i++)
+                {
+                    if (Covers.IDs[i].ID == title_id)
+                    {
+                        coverURL = Covers.IDs[i].cover;
+                    }
+                }
+
+                var patchEmbed = new EmbedBuilder();
+                    patchEmbed.Title = title;
+                    patchEmbed.Color = Color.Orange;
+                    patchEmbed.WithFooter(f => f.Text = $"Content ID: {patch.Tag.Package[0].ContentId}");
+                    if (coverURL != null) patchEmbed.ThumbnailUrl = coverURL;
+
+                // Credit to RPCS3-Bot (13xforever) for this code https://github.com/RPCS3/discord-bot - https://github.com/13xforever
+                if (pkgs.Length > 1)
+                {
+                    var i = 0;
+                    do
+                    {
+                        var pkg = pkgs[i++];
+                        patchEmbed.AddField($"Update v{pkg.Version} - ({ToMB(pkg.Size)}MB) - Min Firmware: {FormatSysVer(pkg.SysVer)}", $"[{pkg.Url.Substring(103, 28)}.pkg]({pkg.Url})");
+                    } while (i < pkgs.Length);
+
+                    patchEmbed.AddField($"Hybrid Package ({ToMB(pkgs[pkgs.Length - 1].HybridPackage.Size)}MB) - " +
+                        $"Min Firmware: {FormatSysVer(pkgs[pkgs.Length - 1].SysVer)}", $"[{pkgs[pkgs.Length - 1].Url.Substring(103, 28)}.pkg]({pkgs[pkgs.Length - 1].HybridPackage.Url})");
+                    patchEmbed.Description = $"Content ID: {pkgs[0].ContentId}";
+                    patchEmbed.WithFooter(f => f.Text = $"Note: Hybrid Packages contain all previous updates");
+                }
+                else if (pkgs.Length == 1)
+                {
+                    patchEmbed.Title = $"{pkgs[0].Sfo.Title} v{pkgs[0].Version} ({ToMB(pkgs[0].Size)}MB)";
+                    patchEmbed.Description = $"[{pkgs[0].Url.Substring(103, 28)}.pkg]({pkgs[0].Url})";
+                    patchEmbed.AddField("Min Firmware", $"{FormatSysVer(pkgs[0].SysVer)}");
+                }
+
+                return patchEmbed.Build();
+            }
+        }
+
+        //Credit to VitaSmith for this code https://github.com/VitaSmith
+        private static readonly byte[] hmac_key = {
+            0xE5, 0xE2, 0x78, 0xAA, 0x1E, 0xE3, 0x40, 0x82, 0xA0, 0x88, 0x27, 0x9C, 0x83, 0xF9, 0xBB, 0xC8,
+            0x06, 0x82, 0x1C, 0x52, 0xF2, 0xAB, 0x5D, 0x2B, 0x4A, 0xBD, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14
+        };
+
+        private static HMACSHA256 hmac = new HMACSHA256(hmac_key);
+        private static readonly string base_url = "https://gs-sec.ww.np.dl.playstation.net/pl/np/";
+
+        private static string ConvertTitleIDToHash()
+        {
+            //Getting the title id and giving the link back
+            byte[] hash = hmac.ComputeHash(new ASCIIEncoding().GetBytes("np_" + title_id));
+            string patchUrl = base_url + title_id + "/" + BitConverter.ToString(hash).ToLower().Replace("-", "") + "/" + title_id + "-ver.xml";
+            return patchUrl;
+        }
+
+        private static double ToMB(double size)
+        {
+            size = size / 1024 / 1024;
+            size = Math.Round(size, 2);
+            return size;
+        }
+
+        //Credit to VitaSmith for this code https://github.com/VitaSmith
+        private static string FormatSysVer(uint sysver)
+        {
+            sysver /= 0x10000;
+            sysver = (sysver / 0x1000 * 1000) + ((sysver & 0x0F00) / 0x100 * 100) + ((sysver & 0x00F0) / 0x10 * 10) + (sysver & 0x000F);
+
+            return sysver.ToString().Insert(0, "v").Insert(2, ".");
+        }
+    }
+}

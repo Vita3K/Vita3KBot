@@ -31,5 +31,10 @@ namespace Vita3KBot.Commands {
             else
                 await ReplyAsync($"Edited explanation for {name}.");
         }
+        
+        [Command("help")]
+        public async Task Help() {
+            await Explain("help");
+        }
     }
 }

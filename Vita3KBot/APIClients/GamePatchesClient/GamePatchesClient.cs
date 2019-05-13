@@ -14,18 +14,16 @@ using GamePatchesClient.POCOs;
 
 namespace APIClients {
     public static class PSNClient {
-        public static string title_id { get; set; }
-
-        public static Embed GetTitlePatch() {
-            string url = ConvertTitleIDToHash();
+        public static Embed GetTitlePatch(string titleId) {
+            string url = ConvertTitleIDToHash(titleId);
 
             // Needed to bypass certificate errors
             ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
             var noUpdatesEmbed = new EmbedBuilder
             {
-                Title = title_id,
-                Description = $"No updates were found for {title_id}",
+                Title = titleId,
+                Description = $"No updates were found for {titleId}",
                 Color = Color.Orange
             };
 
@@ -49,7 +47,7 @@ namespace APIClients {
                 string coverURL = string.Empty;
                 for (int i = 0; i < Covers.IDs.Length; i++)
                 {
-                    if (Covers.IDs[i].ID == title_id)
+                    if (Covers.IDs[i].ID == titleId)
                     {
                         coverURL = Covers.IDs[i].cover;
                     }
@@ -96,11 +94,11 @@ namespace APIClients {
         private static HMACSHA256 hmac = new HMACSHA256(hmac_key);
         private static readonly string base_url = "https://gs-sec.ww.np.dl.playstation.net/pl/np/";
 
-        private static string ConvertTitleIDToHash()
+        private static string ConvertTitleIDToHash(string titleId)
         {
             //Getting the title id and giving the link back
-            byte[] hash = hmac.ComputeHash(new ASCIIEncoding().GetBytes("np_" + title_id));
-            string patchUrl = base_url + title_id + "/" + BitConverter.ToString(hash).ToLower().Replace("-", "") + "/" + title_id + "-ver.xml";
+            byte[] hash = hmac.ComputeHash(new ASCIIEncoding().GetBytes("np_" + titleId));
+            string patchUrl = base_url + titleId + "/" + BitConverter.ToString(hash).ToLower().Replace("-", "") + "/" + titleId + "-ver.xml";
             return patchUrl;
         }
 

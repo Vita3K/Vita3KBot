@@ -142,18 +142,11 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Command("latest")]
-        private async Task App()
-        {
-            await ReplyAsync(embed: AppveyorClient.GetLatestBuild().Result);
-        }
-
         [Command("update")]
-        private async Task Update([Remainder] string titleid)
+        private async Task Update([Remainder] string titleId)
         {
             //TODO: filter titleID to match valid IDs (e.g. PCSE00000 or PCSB00000) using a regex
-            PSNClient.title_id = titleid.ToUpper();
-            await ReplyAsync(embed: PSNClient.GetTitlePatch());
+            await ReplyAsync(embed: PSNClient.GetTitlePatch(titleId.ToUpper()));
         }
     }
 }

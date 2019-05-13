@@ -65,7 +65,7 @@ namespace Vita3KBot.Commands {
         [Alias("remove", "del")]
         [RequireBotPermission(GuildPermission.ManageMessages)]
         [RequireUserPermission(GuildPermission.ManageMessages)]
-        private async Task Del(int numOfMsg)
+        private async Task Delete(int numOfMsg)
         {
             var messages = await Context.Channel.GetMessagesAsync(numOfMsg + 1).FlattenAsync();
             await ((ITextChannel)Context.Channel).DeleteMessagesAsync(messages);

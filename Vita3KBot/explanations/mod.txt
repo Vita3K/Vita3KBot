@@ -1,0 +1,6 @@
+Here are some mod commands. Only admins can run these.
+```
+-edit <topic> <explanation>    Add/edits a topic's explanation.
+-delete <messageCount>         Deletes so many messages from the channel.
+```
+More to come.

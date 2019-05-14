@@ -91,11 +91,11 @@ namespace Vita3KBot.Commands {
         public async Task Compatability([Remainder]string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
 
-            var search = new SearchIssuesRequest(keyword) {
+            var search = new SearchIssuesRequest("\"" + keyword + "\"") {
                 Repos = new RepositoryCollection {
                     "Vita3K/homebrew-compatibility",
                     "Vita3K/compatibility"
-                }
+                },
             };
 
             var result = await github.Search.SearchIssues(search);

@@ -1,8 +1,0 @@
-You can trigger any of the following commands with the `-` prefix.
-```
--latest             Provides a link to Vita3K's current build.
--compat <game>      Provides a compatability report of the game.
--update <game>      Provides PSN update information for the game.
--explain <topic>    Explains something.
--help               Lists all commands.
-```

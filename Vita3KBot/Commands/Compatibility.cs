@@ -10,6 +10,7 @@ using APIClients;
 using Octokit;
 
 namespace Vita3KBot.Commands {
+    [Group("compat")]
     public class Compatibility: ModuleBase<SocketCommandContext> {
         // Config
         private const int MaxItemsToDisplay = 8;
@@ -22,7 +23,11 @@ namespace Vita3KBot.Commands {
                 // Priority, display when possible.
                 "Playable",
                 "Ingame",
+                "Ingame +",
+                "Ingame -",
+                "Menu",
                 "Intro",
+                "Bootable",
                 "Crash",
                 "Nothing",
 
@@ -87,8 +92,9 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Command("compat")]
-        public async Task Compatability([Remainder]string keyword) {
+        [Command, Name("compat")]
+        [Summary("Provides a compatibility report of the game.")]
+        public async Task Compatability([Remainder, Summary("Game name to search")]string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
 
             var search = new SearchIssuesRequest("\"" + keyword + "\"") {
@@ -142,8 +148,12 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Command("update")]
-        private async Task Update([Remainder] string titleId)
+    }
+    [Group("update")]
+    public class Update : ModuleBase<SocketCommandContext> {
+        [Command, Name("update")]
+        [Summary("Provides PSN update information for the game.")]
+        private async Task GetUpdate([Remainder, Summary("Title ID of the game")] string titleId)
         {
             //TODO: filter titleID to match valid IDs (e.g. PCSE00000 or PCSB00000) using a regex
             await ReplyAsync(embed: PSNClient.GetTitlePatch(titleId.ToUpper()));

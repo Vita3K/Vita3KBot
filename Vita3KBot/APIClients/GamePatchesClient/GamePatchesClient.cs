@@ -42,7 +42,7 @@ namespace APIClients {
 
                 var pkgs = patch.Tag.Package;
                 var title = pkgs.Select(p => p.Sfo?.Title).LastOrDefault(t => !string.IsNullOrEmpty(t));
-                var Covers = JsonConvert.DeserializeObject<Root>(File.ReadAllText("./APIClients/GamePatchesClient/Covers.json")); // Relevant to Bot.cs
+                var Covers = JsonConvert.DeserializeObject<Root>(File.ReadAllText("./APIClients/GamePatchesClient/Covers.json")); // Relative to Bot.cs
 
                 string coverURL = string.Empty;
                 for (int i = 0; i < Covers.IDs.Length; i++)
@@ -50,6 +50,7 @@ namespace APIClients {
                     if (Covers.IDs[i].ID == titleId)
                     {
                         coverURL = Covers.IDs[i].cover;
+                        break;
                     }
                 }
 

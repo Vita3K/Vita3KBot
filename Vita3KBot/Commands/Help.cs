@@ -22,12 +22,12 @@ namespace Vita3KBot.Commands {
         public async Task Help([Remainder, Summary("Name of command")]string command) {
             var result = _commands.Search(command);
             if (!result.IsSuccess) {
-                await ReplyAsync("couldn't find the command you're looking for");
+                await ReplyAsync("Couldn't find the command you're looking for.");
                 return;
             }
 
             bool isAdmin = false;
-            if (Context.Channel.GetType().Name != "SocketDMChannel") {
+            if (!(Context.Channel is IPrivateChannel)) {
                 var user = Context.User as IGuildUser;
                 if (user.GuildPermissions.Administrator)
                     isAdmin = true;
@@ -35,10 +35,10 @@ namespace Vita3KBot.Commands {
 
             var match = result.Commands.FirstOrDefault();
 
-            EmbedBuilder helpEmbed = new EmbedBuilder();
-            helpEmbed.WithTitle("Help");
-            helpEmbed.WithColor(Color.Orange);
-            helpEmbed.WithDescription($"`{match.Command.Name}`: {match.Command.Summary}");
+            EmbedBuilder helpEmbed = new EmbedBuilder()
+            .WithTitle("Help")
+            .WithColor(Color.Orange)
+            .WithDescription($"`{match.Command.Name}`: {match.Command.Summary}");
 
             if (match.Command.Aliases.Count > 1)
                 helpEmbed.AddField("Aliases", $"`{string.Join(", ", match.Command.Aliases)}`");
@@ -81,16 +81,16 @@ namespace Vita3KBot.Commands {
             string commands = "";
 
             bool isAdmin = false;
-            if (Context.Channel.GetType().Name != "SocketDMChannel") {
+            if (!(Context.Channel is IPrivateChannel)) {
                 var user = Context.User as IGuildUser;
                 if (user.GuildPermissions.Administrator)
                     isAdmin = true;
             }
 
-            EmbedBuilder helpEmbed = new EmbedBuilder();
-            helpEmbed.WithTitle("Help");
-            helpEmbed.WithDescription("These are all the available commands, specify a command for more information about it.");
-            helpEmbed.WithColor(Color.Orange);
+            EmbedBuilder helpEmbed = new EmbedBuilder()
+            .WithTitle("Help")
+            .WithDescription("These are all the available commands, specify a command for more information about it.")
+            .WithColor(Color.Orange);
             foreach(var command in _commands.Modules) {
                 if (!command.IsSubmodule) {
                     if (command.Remarks != "Admin")

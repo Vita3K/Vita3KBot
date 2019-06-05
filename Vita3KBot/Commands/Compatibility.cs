@@ -72,7 +72,6 @@ namespace Vita3KBot.Commands {
                 _issue = issue;
                 // Repository object is sometimes null on searches. Just guess the repo by the URL.
                 IsHomebrew = issue.Url.Contains(HomebrewRepo);
-                Console.WriteLine(issue.CommentsUrl + " " + issue.Comments);
                 Status = "Unknown";
 
                 var foundStatus = false;
@@ -97,21 +96,25 @@ namespace Vita3KBot.Commands {
         public async Task Compatability([Remainder, Summary("Game name to search")]string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
 
-            var search = new SearchIssuesRequest("\"" + keyword + "\"") {
+            var search = new SearchIssuesRequest(keyword) {
                 Repos = new RepositoryCollection {
                     "Vita3K/homebrew-compatibility",
                     "Vita3K/compatibility"
-                },
+                }
             };
-
-            var result = await github.Search.SearchIssues(search);
-            switch (result.Items.Count) {
+            
+            var keywords = keyword.ToLower().Split(' ');
+            var searchResults = (await github.Search.SearchIssues(search)).Items;
+            // The following makes sure all the keywords are contained in each title, and removes the ones that don't.
+            var filteredResults = searchResults.Where(
+                x => keywords.Any(y => x.Title.ToLower().Contains(y))).ToList();
+            switch (filteredResults.Count) {
                 case 0:
                     await ReplyAsync("No games found for search term " + keyword + ".");
                     break;
 
                 case 1: {
-                    var issue = result.Items.First();
+                    var issue = filteredResults.First();
                     var info = new TitleInfo(issue);
                     await info.FetchCommentInfo(github);
                     var builder = new EmbedBuilder()
@@ -128,16 +131,16 @@ namespace Vita3KBot.Commands {
 
                 default: {
                     var description = new StringBuilder();
-                    for (var a = 0; a < Math.Min(result.Items.Count, MaxItemsToDisplay); a++) {
-                        var issue = result.Items[a];
+                    for (var a = 0; a < Math.Min(filteredResults.Count, MaxItemsToDisplay); a++) {
+                        var issue = filteredResults[a];
                         var info = new TitleInfo(issue);
-                        description.Append("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial")
-                                           + "): **" + info.Status + "**\n");
+                        var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
+                        description.Append($"*[{issue.Title}]({issue.HtmlUrl})* ({homebrewText}): **{info.Status}**\n");
                     }
-                    if (result.Items.Count > MaxItemsToDisplay) description.Append("...");
+                    if (filteredResults.Count > MaxItemsToDisplay) description.Append("...");
 
                     var builder = new EmbedBuilder()
-                        .WithTitle("Found " + result.Items.Count + " issues for search term " + keyword + ".")
+                        .WithTitle("Found " + filteredResults.Count + " issues for search term " + keyword + ".")
                         .WithDescription(description.ToString())
                         .WithColor(Color.Orange)
                         .WithCurrentTimestamp();

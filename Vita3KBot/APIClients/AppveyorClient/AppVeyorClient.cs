@@ -33,9 +33,11 @@ namespace APIClients {
                 return DummyEmbed.Build();
             }
 
+            var prInfo = await GetPRInfo(JobJSON.Build);
+
             var LatestBuild = new EmbedBuilder()
-                .WithTitle($"PR: #{GetPRInfo(JobJSON.Build).Result.Number} By {JobJSON.Build.AuthorUserName}")
-                .WithUrl(GetPRInfo(JobJSON.Build).Result.HtmlUrl)
+                .WithTitle($"PR: #{prInfo.Number} By {JobJSON.Build.AuthorUserName}")
+                .WithUrl(prInfo.HtmlUrl)
                 .WithDescription($"{JobJSON.Build.Message}")
                 .WithColor(Color.Orange)
                 .AddField("Windows", $"[{FileName}](https://ci.appveyor.com/api/buildjobs/{JobId}/artifacts/{FileName})")

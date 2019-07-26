@@ -9,6 +9,7 @@
         public Jobs[] Jobs { get; set; }
         public string Message { get; set; }
         public string AuthorUserName { get; set; }
+        public string CommitId { get; set; }
     }
     public class Jobs
     {

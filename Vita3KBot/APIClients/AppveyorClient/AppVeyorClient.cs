@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
+using System.Linq;
 
 using Discord;
 using Newtonsoft.Json;
 
 using AppVeyor.POCOs;
+using Octokit;
 using Vita3KBot;
 
 namespace APIClients {
@@ -32,8 +34,8 @@ namespace APIClients {
             }
 
             var LatestBuild = new EmbedBuilder()
-                .WithTitle($"PR: {JobJSON.Build.Message.Substring(JobJSON.Build.Message.IndexOf("#"), 4)} By {JobJSON.Build.AuthorUserName}")
-                .WithUrl($"https://github.com/vita3k/vita3k/pull/{JobJSON.Build.Message.Substring(JobJSON.Build.Message.IndexOf("#") + 1, 3)}")
+                .WithTitle($"PR: #{GetPRInfo(JobJSON.Build).Result.Number} By {JobJSON.Build.AuthorUserName}")
+                .WithUrl(GetPRInfo(JobJSON.Build).Result.HtmlUrl)
                 .WithDescription($"{JobJSON.Build.Message}")
                 .WithColor(Color.Orange)
                 .AddField("Windows", $"[{FileName}](https://ci.appveyor.com/api/buildjobs/{JobId}/artifacts/{FileName})")
@@ -41,6 +43,20 @@ namespace APIClients {
                 .AddField("Mac", "[Vita3K-mac-nightly.zip](https://github.com/Vita3K/Vita3K-builds/raw/master/Vita3K-mac-nightly.zip)");
 
             return LatestBuild.Build();
+        }
+
+        public static async Task<Issue> GetPRInfo(Build build) {
+            var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
+
+            var request = new SearchIssuesRequest(build.CommitId) {
+                Type = IssueTypeQualifier.PullRequest,
+                State = ItemState.Closed,
+            };
+            request.Repos.Add("Vita3K/Vita3K");
+
+            var searchResults = (await github.Search.SearchIssues(request)).Items;
+
+            return searchResults.FirstOrDefault();
         }
     }
 }

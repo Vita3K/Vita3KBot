@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace Vita3KBot {
     public static class Utils {
+        public static readonly Random Random = new Random();
 
         // Sends an HTTP Get request. Might not be the best solution.
         public static async Task<string> HttpGet(string address, string parameters = "") {

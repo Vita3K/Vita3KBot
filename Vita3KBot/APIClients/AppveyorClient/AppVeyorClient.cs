@@ -33,22 +33,30 @@ namespace APIClients {
                 return DummyEmbed.Build();
             }
 
-            var prInfo = await GetPRInfo(JobJSON.Build);
+            var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
 
-            var LatestBuild = new EmbedBuilder()
-                .WithTitle($"PR: #{prInfo.Number} By {JobJSON.Build.AuthorUserName}")
-                .WithUrl(prInfo.HtmlUrl)
-                .WithDescription($"{JobJSON.Build.Message}")
-                .WithColor(Color.Orange)
-                .AddField("Windows", $"[{FileName}](https://ci.appveyor.com/api/buildjobs/{JobId}/artifacts/{FileName})")
-                .AddField("Linux", "[Vita3K-linux-nightly.zip](https://github.com/Vita3K/Vita3K-builds/raw/master/Vita3K-linux-nightly.zip)")
-                .AddField("Mac", "[Vita3K-mac-nightly.zip](https://github.com/Vita3K/Vita3K-builds/raw/master/Vita3K-mac-nightly.zip)");
+            var latestRelease = await github.Repository.Release.GetLatest("Vita3K", "Vita3K");
+            var prInfo = await GetPRInfo(github, JobJSON.Build);
+            var LatestBuild = new EmbedBuilder();
+
+            if (prInfo != null) {
+                LatestBuild.WithTitle($"PR: #{prInfo.Number} By {JobJSON.Build.AuthorUserName}")
+                .WithUrl(prInfo.HtmlUrl);
+            } else {
+                LatestBuild.WithTitle($"Commit: {JobJSON.Build.CommitId} By {JobJSON.Build.AuthorUserName}")
+                .WithUrl($"https://github.com/vita3k/vita3k/commit/{JobJSON.Build.CommitId}");
+            }
+
+            LatestBuild.WithDescription($"{JobJSON.Build.Message}")
+            .WithColor(Color.Orange)
+            .AddField("Windows", $"[{FileName}](https://ci.appveyor.com/api/buildjobs/{JobId}/artifacts/{FileName})")
+            .AddField("Linux", $"[{latestRelease.Assets[0].Name}]({latestRelease.Assets[0].BrowserDownloadUrl})")
+            .AddField("Mac", $"[{latestRelease.Assets[1].Name}]({latestRelease.Assets[1].BrowserDownloadUrl})");
 
             return LatestBuild.Build();
         }
 
-        public static async Task<Issue> GetPRInfo(Build build) {
-            var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
+        public static async Task<Issue> GetPRInfo(GitHubClient github, Build build) {
 
             var request = new SearchIssuesRequest(build.CommitId) {
                 Type = IssueTypeQualifier.PullRequest,

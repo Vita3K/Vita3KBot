@@ -36,6 +36,13 @@ namespace APIClients {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
 
             var latestRelease = await github.Repository.Release.GetLatest("Vita3K", "Vita3K");
+            var linuxRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("master-linux");
+            }).Last();
+            var macosRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("master-osx");
+            }).Last();
+
             var prInfo = await GetPRInfo(github, JobJSON.Build);
             var LatestBuild = new EmbedBuilder();
 
@@ -50,8 +57,8 @@ namespace APIClients {
             LatestBuild.WithDescription($"{JobJSON.Build.Message}")
             .WithColor(Color.Orange)
             .AddField("Windows", $"[{FileName}](https://ci.appveyor.com/api/buildjobs/{JobId}/artifacts/{FileName})")
-            .AddField("Linux", $"[{latestRelease.Assets[0].Name}]({latestRelease.Assets[0].BrowserDownloadUrl})")
-            .AddField("Mac", $"[{latestRelease.Assets[1].Name}]({latestRelease.Assets[1].BrowserDownloadUrl})");
+            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl})")
+            .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})");
 
             return LatestBuild.Build();
         }

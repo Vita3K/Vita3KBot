@@ -26,7 +26,18 @@ namespace Vita3KBot {
             
             //TODO: Put Persona 4 Golden monitoring here.
         }
-        
+
+        // User join event
+        private async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
+            if (j_user.IsBot || j_user.IsWebhook) return;
+            var dmChannel = await j_user.GetOrCreateDMChannelAsync();
+            await dmChannel.SendMessageAsync("Welcome to Vita3k! \n " +
+                "Please read the server <#415122640051896321> and <#486173784135696418> thoroughly before posting. \n " + "\n " +
+                "For the latest up-to-date guide on game installation and hardware requirements, please visit <https://vita3k.org/quickstart.html> \n " + "\n " +
+                "This emulator is still in it's early stages and most commercial games do not run yet! Feedback is greatly appreciated. \n " +
+                "For current issues with the emulator visit the GitHub repo at https://github.com/Vita3K/Vita3K/issues");
+        }
+
         // Called by Discord.Net when it wants to log something.
         private static Task Log(LogMessage message) {
             Console.WriteLine(message.Message);
@@ -64,7 +75,8 @@ namespace Vita3KBot {
         public async Task Init() {
             _client.Log += Log;
             _client.MessageReceived += CheckMessage;
-            
+            _client.UserJoined += HandleUserJoinedAsync;
+
             await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
         }
         

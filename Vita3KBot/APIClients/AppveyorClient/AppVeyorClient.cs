@@ -25,7 +25,7 @@ namespace APIClients {
             GetFilesFromJob[] Files = JsonConvert.DeserializeObject<GetFilesFromJob[]>(FileNameValue);
             //Appveyor returns null when it's building, so i'm getting by with this hack until we cache the last build
             //TODO: cache the last build
-            var FileName = Files?[0].FileName;
+            var FileName = Files.FirstOrDefault()?.FileName;
             if (FileName == null) {
                 var DummyEmbed = new EmbedBuilder()
                     .WithTitle("Current Build is building")

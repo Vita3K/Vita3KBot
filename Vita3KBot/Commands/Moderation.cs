@@ -1,13 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 using Discord;
 using Discord.Commands;
-using Discord.WebSocket;
+
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
-    [Group("delete"), Alias("remove", "del"), Remarks("Admin")]
+    [Group("delete"), Alias("remove", "del"), RequireModeratorRole]
     public class ModerationModule : ModuleBase<SocketCommandContext> {
 
         [Command, Name("delete")]

@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 
 using Discord.Commands;
@@ -29,11 +28,11 @@ namespace Vita3KBot.Commands {
             "Very doubtful."
         };
         
-        // Question parameter is intentionally ignored, because the answer is already known.
+        // Question parameter needs to be specified by the user so bot can reply
     
         [Command, Name("8ball")]
         [Summary("Accurately answers yes/no questions.")]
-        public async Task Predict([Remainder, Summary("The question you wish to ask.")] string question = "") {
+        public async Task Predict([Remainder, Summary("The question you wish to ask.")] string question) {
             await ReplyAsync(EightBallReplies[Utils.Random.Next(EightBallReplies.Length - 1)]);
         }
     }
@@ -54,7 +53,7 @@ namespace Vita3KBot.Commands {
         
         [Command, Name("when")]
         [Summary("Determines when some event will happen.")]
-        public async Task Predict([Remainder, Summary("A description of an event to predict.")] string question = "") {
+        public async Task Predict([Remainder, Summary("A description of an event to predict.")] string question) {
             await ReplyAsync(
                 $"It will happen in the next {Utils.Random.Next(2, 100)} " +
                 $"{TimePeriod[Utils.Random.Next(TimePeriod.Length - 1)]}.");

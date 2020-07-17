@@ -5,9 +5,6 @@ using System.Collections.Generic;
 
 using Discord;
 using Discord.Commands;
-using Discord.WebSocket;
-
-using Vita3KBot;
 
 namespace Vita3KBot.Commands {
     [Group("help")]
@@ -26,14 +23,10 @@ namespace Vita3KBot.Commands {
                 return;
             }
 
-            bool isAdmin = false;
-            if (!(Context.Channel is IPrivateChannel)) {
-                var user = Context.User as IGuildUser;
-                if (user.GuildPermissions.Administrator)
-                    isAdmin = true;
-            }
-
             var match = result.Commands.FirstOrDefault();
+
+            var whitelisted = RolesUtils.IsWhitelisted(Context, Context.Guild);
+            var moderator = RolesUtils.IsModerator(Context, Context.Guild);
 
             EmbedBuilder helpEmbed = new EmbedBuilder()
             .WithTitle("Help")
@@ -60,10 +53,21 @@ namespace Vita3KBot.Commands {
                 string subcommands = "";
 
                 foreach(var subcommand in match.Command.Module.Submodules) {
-                    if (subcommand.Remarks != "Admin")
-                        subcommandsList.Add(subcommand.Name);
-                    else if (subcommand.Remarks == "Admin" && isAdmin)
-                        subcommandsList.Add(subcommand.Name);
+                    if (!CommandsUtils.CommandRequiresModerator(subcommand) && !CommandsUtils.CommandRequiresWhitelistedRole(subcommand)) {
+                        subcommandsList.Add($"{subcommand.Name}");
+                    }
+                    else if (whitelisted || moderator) {
+                        if (CommandsUtils.CommandRequiresModerator(subcommand) && moderator) {
+                            System.Console.WriteLine("Mod command");
+                            System.Console.WriteLine(subcommand.Name);
+                            subcommandsList.Add($"{subcommand.Name}");
+                        }
+                        if (CommandsUtils.CommandRequiresWhitelistedRole(subcommand) && whitelisted) {
+                            System.Console.WriteLine("Whitelisted role command");
+                            System.Console.WriteLine(subcommand.Name);
+                            subcommandsList.Add($"{subcommand.Name}");
+                        }
+                    }
                 }
                 subcommands = string.Join(", ", subcommandsList);
                 helpEmbed.AddField("Subcommands", $"`{subcommands}`");
@@ -78,14 +82,11 @@ namespace Vita3KBot.Commands {
         [Command]
         public async Task Help() {
             List<string> commandList = new List<string>();
+            List<string> commandPreconditions = new List<string>();
             string commands = "";
 
-            bool isAdmin = false;
-            if (!(Context.Channel is IPrivateChannel)) {
-                var user = Context.User as IGuildUser;
-                if (user.GuildPermissions.Administrator)
-                    isAdmin = true;
-            }
+            var whitelisted = RolesUtils.IsWhitelisted(Context, Context.Guild);
+            var moderator = RolesUtils.IsModerator(Context, Context.Guild);
 
             EmbedBuilder helpEmbed = new EmbedBuilder()
             .WithTitle("Help")
@@ -93,10 +94,21 @@ namespace Vita3KBot.Commands {
             .WithColor(Color.Orange);
             foreach(var command in _commands.Modules) {
                 if (!command.IsSubmodule) {
-                    if (command.Remarks != "Admin")
+                    if (!CommandsUtils.CommandRequiresModerator(command) && !CommandsUtils.CommandRequiresWhitelistedRole(command)) {
                         commandList.Add($"`{command.Name}`");
-                    else if (command.Remarks == "Admin" && isAdmin)
-                        commandList.Add($"`{command.Name}`");
+                    }
+                    else if (whitelisted || moderator) {
+                        if (CommandsUtils.CommandRequiresModerator(command) && moderator) {
+                            System.Console.WriteLine("Mod command");
+                            System.Console.WriteLine(command.Name);
+                            commandList.Add($"`{command.Name}`");
+                        }
+                        if (CommandsUtils.CommandRequiresWhitelistedRole(command) && whitelisted) {
+                            System.Console.WriteLine("Whitelisted role command");
+                            System.Console.WriteLine(command.Name);
+                            commandList.Add($"`{command.Name}`");
+                        }
+                    }
                 }
             }
 

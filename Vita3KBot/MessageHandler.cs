@@ -1,5 +1,5 @@
 using System;
-using System.Data;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -64,8 +64,14 @@ namespace Vita3KBot {
                         await userMessage.Channel.SendMessageAsync(
                             Utils.Code(execution.Exception.Message + "\n\n" + execution.Exception.StackTrace));
                     } else {
+                        var currentCommand = _commands.Commands.Where(s => {
+                            return userMessage.Content.Contains(s.Name);
+                        }).First();
                         await userMessage.Channel.SendMessageAsync(
                             "Halt! We've hit an error." + Utils.Code(result.ErrorReason));
+                        if (result.ErrorReason == "The input text has too few parameters.") {
+                            await userMessage.Channel.SendMessageAsync($"Try `-help {currentCommand.Name}` for the command's usage");
+                        }
                     }
                 }
             }

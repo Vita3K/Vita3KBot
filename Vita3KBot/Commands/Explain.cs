@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 using Discord;
 using Discord.Commands;
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
     [Group("explain")]
@@ -29,11 +30,10 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Group("edit"), Remarks("Admin")]
+        [Group("edit"), RequireWhitelistedRole]
         public class Add : ModuleBase<SocketCommandContext> {
             [Command, Name("edit"), Priority(1)]
             [Summary("Adds/edits a topic's/term's explanation.")]
-            [RequireUserPermission(GuildPermission.Administrator)]
             public async Task AddExplain([Summary("Topic name")]string topic, [Remainder, Summary("Topic explanation")]string contents) {
                 var path = Path.Combine(ExplanationDirectory.FullName, topic + ".txt");
                 if (!File.Exists(path)) {
@@ -47,11 +47,10 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Group("delete"), Remarks("Admin")]
+        [Group("delete"), RequireWhitelistedRole]
         public class Delete : ModuleBase<SocketCommandContext> {
             [Command, Name("delete"), Priority(1)]
             [Summary("Deletes the chosen topic/term")]
-            [RequireUserPermission(GuildPermission.Administrator)]
             public async Task DeleteExplanation([Remainder, Summary("Topic to delete")]string topic) {
                 var file = ExplanationDirectory.GetFiles().FirstOrDefault(f => f.Name == topic + ".txt");
                 if (file == null) {

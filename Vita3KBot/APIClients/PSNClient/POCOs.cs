@@ -2,7 +2,7 @@
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace GamePatchesClient.POCOs
+namespace PSN.POCOs
 {
     //Game updates POCOs
     [Serializable, XmlType("titlepatch")]
@@ -59,5 +59,48 @@ namespace GamePatchesClient.POCOs
     {
         public string ID { get; set; }
         public string cover { get; set; }
+    }
+
+    // Firmware POCOs
+    [Serializable, XmlType("update_data_list")]
+    public class UpdateDataList {
+        [XmlElement(typeof(Region), ElementName="region")]
+        public Region Region { get; set; }
+    }
+    public class Region {
+        [XmlElement(typeof(Version), ElementName="version")]
+        public Version Version { get; set; }
+
+        [XmlElement(typeof(Recovery), ElementName="recovery")]
+        public Recovery[] Recovery { get; set; }
+    }
+
+    public class Version {
+        [XmlAttribute(AttributeName="label")]
+        public float Label { get; set; }
+
+        [XmlElement(typeof(UpdateData), ElementName="update_data")]
+        public UpdateData UpdateData { get; set; }
+    }
+
+    public class UpdateData {
+        [XmlElement(typeof(Image), ElementName="image")]
+        public Image Image { get; set; }
+    }
+
+    public class Recovery {
+        [XmlAttribute(AttributeName="spkg_type")]
+        public string SPKGType { get; set; }
+
+        [XmlElement(typeof(Image), ElementName="image")]
+        public Image Image { get; set; }
+    }
+
+    public class Image {
+        [XmlAttribute(AttributeName="size")]
+        public long Size { get; set; }
+        
+        [XmlText]
+        public string Text { get; set; }
     }
 }

@@ -11,7 +11,7 @@ namespace Vita3KBot.Commands {
         [Summary("Provides a link to Vita3K's current latest build.")]
         private async Task GetBuild()
         {
-            await ReplyAsync(embed: await AppveyorClient.GetLatestBuild());
+            await ReplyAsync(embed: await GithubClient.GetLatestBuild());
         }
     }
 }

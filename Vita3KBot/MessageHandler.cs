@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Discord;
 using Discord.Commands;
+using Discord.Addons.Interactive;
 using Discord.WebSocket;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -93,6 +94,7 @@ namespace Vita3KBot {
             _services = new ServiceCollection()
                 .AddSingleton(_client)
                 .AddSingleton(_commands)
+                .AddSingleton(new InteractiveService(_client))
                 .BuildServiceProvider();
         }
     }

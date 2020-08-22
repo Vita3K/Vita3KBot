@@ -7,6 +7,8 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 
+using SharpLink;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Vita3KBot {
@@ -15,16 +17,22 @@ namespace Vita3KBot {
 
         private DiscordSocketClient _client;
         private MessageHandler _handler;
+        public static LavalinkManager lavalinkManager;
 
         // Initializes Discord.Net
         private async Task Start() {
             _client = new DiscordSocketClient();
             _handler = new MessageHandler(_client);
+            lavalinkManager = new LavalinkManager(_client);
 
             await _handler.Init();
             
             await _client.LoginAsync(TokenType.Bot, _token);
             await _client.StartAsync();
+
+            _client.Ready += async () => {
+                await lavalinkManager.StartAsync();
+            };
 
             await Task.Delay(-1);
         }

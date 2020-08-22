@@ -1,25 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using SharpLink;
+using Victoria;
 
 namespace Vita3KBot
 {
     public static class QueueManager
     {
-        private static readonly Dictionary<ulong, Queue<LavalinkTrack>> Queue =
-            new Dictionary<ulong, Queue<LavalinkTrack>>();
+        private static readonly Dictionary<ulong, Queue<LavaTrack>> Queue =
+            new Dictionary<ulong, Queue<LavaTrack>>();
         
-        public static string PushTrack(this ulong guildId, LavalinkTrack track)
+        public static string PushTrack(this ulong guildId, LavaTrack track)
         {
-            Queue.TryAdd(guildId, new Queue<LavalinkTrack>());
+            Queue.TryAdd(guildId, new Queue<LavaTrack>());
             Queue[guildId].Enqueue(track);
             return "Successfully added to queue.";
         }
 
-        public static LavalinkTrack PopTrack(this ulong guildId)
+        public static LavaTrack PopTrack(this ulong guildId)
         {
-            Queue.TryAdd(guildId, new Queue<LavalinkTrack>());
+            Queue.TryAdd(guildId, new Queue<LavaTrack>());
             if (!Queue[guildId].Any())
             {
                 throw new InvalidOperationException("Queue empty");
@@ -30,13 +30,13 @@ namespace Vita3KBot
 
         public static void PopAll(this ulong guildId)
         {
-            Queue.TryAdd(guildId, new Queue<LavalinkTrack>());
+            Queue.TryAdd(guildId, new Queue<LavaTrack>());
             Queue[guildId].Clear();
         }
 
-        public static List<LavalinkTrack> PlayList(this ulong guildId)
+        public static List<LavaTrack> PlayList(this ulong guildId)
         {
-            Queue.TryAdd(guildId, new Queue<LavalinkTrack>());
+            Queue.TryAdd(guildId, new Queue<LavaTrack>());
             return Queue[guildId].ToList();
         }
     }

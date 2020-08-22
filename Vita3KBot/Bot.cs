@@ -1,15 +1,12 @@
 using System;
 using System.IO;
-using System.Reflection;
 using System.Threading.Tasks;
 
 using Discord;
-using Discord.Commands;
 using Discord.WebSocket;
-
-using SharpLink;
-
-using Microsoft.Extensions.DependencyInjection;
+using Victoria;
+using Victoria.EventArgs;
+using Vita3KBot.Commands;
 
 namespace Vita3KBot {
     public class Bot {
@@ -17,13 +14,19 @@ namespace Vita3KBot {
 
         private DiscordSocketClient _client;
         private MessageHandler _handler;
-        public static LavalinkManager lavalinkManager;
+        public static LavaNode lavaNode;
 
         // Initializes Discord.Net
         private async Task Start() {
             _client = new DiscordSocketClient();
             _handler = new MessageHandler(_client);
-            lavalinkManager = new LavalinkManager(_client);
+            lavaNode = new LavaNode(_client, new LavaConfig {
+                Authorization = "youshallnotpass",
+                Hostname = "localhost",
+                Port = 2333,
+                ReconnectAttempts = 3,
+                ReconnectDelay = TimeSpan.FromSeconds(5)
+            });
 
             await _handler.Init();
             
@@ -31,8 +34,10 @@ namespace Vita3KBot {
             await _client.StartAsync();
 
             _client.Ready += async () => {
-                await lavalinkManager.StartAsync();
+                if (!lavaNode.IsConnected)
+                    await lavaNode.ConnectAsync();
             };
+            lavaNode.OnTrackEnded += MusicModule.PlayNextTrack;
 
             await Task.Delay(-1);
         }

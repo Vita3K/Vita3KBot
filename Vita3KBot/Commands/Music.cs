@@ -5,98 +5,108 @@ using Discord;
 using Discord.WebSocket;
 using Discord.Addons.Interactive;
 using Discord.Commands;
-using Vita3KBot.Preconditions;
-using SharpLink;
-using SharpLink.Enums;
+using Vita3KBot.Commands.Attributes;
+using Victoria.Enums;
+using Victoria;
+using Victoria.EventArgs;
 
 namespace Vita3KBot.Commands
 {
-    [InVoiceChannel]
-
-        [Group("seek")]
+        [Group("seek"), InVoiceChannel]
         public class Seek : InteractiveBase {
             [Command, Name("seek")]
             [Summary("Seeks to a particular position in the song (in sec)")]
             public async Task SeekTask(int position)
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
                 Console.WriteLine(
-                    $"Track is seekable: {player.CurrentTrack.IsSeekable}\n" +
-                    $"Now at: {TimeSpan.FromMilliseconds(player.CurrentPosition)}" +
-                    $"/{TimeSpan.FromMilliseconds(player.CurrentTrack.Length.Milliseconds)}");
-                if (player.CurrentTrack.IsSeekable)
+                    $"Track is seekable: {player.Track.CanSeek}\n" +
+                    $"Now at: {player.Track.Position}" +
+                    $"/{player.Track.Duration}");
+                if (player.Track.CanSeek)
                 {
-                    await player.SeekAsync(position * 1000);
-                    await ReplyAsync("<:check:462378657114226695>");
+                    Emoji emoji = new Emoji("✅");
+                    await player.SeekAsync(TimeSpan.FromSeconds(position));
+                    await Context.Message.AddReactionAsync(emoji);
                 }
                 else
                 {
-                    await ReplyAndDeleteAsync("<:uncheck:462379632004562965> Cant seek this track.");
+                    await ReplyAndDeleteAsync("❌ Cant seek this track.");
                 }
             }
         }
 
-        [Group("volume")]
-        public class Volume : InteractiveBase {
+        [Group("volume"), InVoiceChannel]
+        public class Volume : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("volume")]
             [Summary("Sets the volume for the current playing song 0-150")]
-            public async Task VolumeTask(uint value = 98450)
+            public async Task VolumeTask(ushort value)
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                if (value == 98450) return; // Should return the volume
+                var player = Bot.lavaNode.GetPlayer(Context.Guild);
+                if (value < 0 || value > 150) return; // Should return the volume
 
-                await player.SetVolumeAsync(value);
+                await player.UpdateVolumeAsync(value);
                 await ReplyAsync("Volume now is set to " + value + "/150");
+            }
+
+            [Command(RunMode = RunMode.Async), Name("volume")]
+            [Summary("Gets the current volume level")]
+            public async Task VolumeTask() {
+                if (Bot.lavaNode.HasPlayer(Context.Guild)) {
+                    var player = Bot.lavaNode.GetPlayer(Context.Guild);
+                    await ReplyAsync("Volume is: " + player.Volume);
+                    return;
+                }
+                await ReplyAsync("I'm not in a voice channel, do `-join` first");
             }
         }
 
-        [Group("pause")]
-        public class Pause : InteractiveBase {
+        [Group("pause"), InVoiceChannel]
+        public class Pause : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("pause")]
             [Summary("Pauses the song")]
             public async Task PauseTask()
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
                 await player.PauseAsync();
                 await ReplyAsync("Paused");
             }
         }
 
-        [Group("resume")]
+        [Group("resume"), InVoiceChannel]
         [Alias("Unpause")]
-        public class Resume : InteractiveBase {
+        public class Resume : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("resume")]
             [Summary("Resumes the song")]
             public async Task ResumeTask()
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                if (player.Playing)
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                if (player.PlayerState == PlayerState.Playing)
                 {
-                    await ReplyAsync("Already playing " + player.CurrentTrack.Title);
+                    await ReplyAsync("Already playing " + player.Track.Title);
                 }
                 else
                 {
-                    await ReplyAsync($"Resumed {player.CurrentTrack.Title}");
+                    await ReplyAsync($"Resumed {player.Track.Title}");
                     await player.ResumeAsync();
                 }
             }
         }
 
-        [Group("now playing")]
+        [Group("now playing"), InVoiceChannel]
         [Alias("np")]
-        public class NowPlaying : InteractiveBase {
+        public class NowPlaying : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("now playing")]
             [Summary("Get the current playing song")]
             public async Task NowPlayingTask()
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
                 var playList = Context.Guild.Id.PlayList();
-                var my = player.CurrentTrack.Title;
+                var my = player.Track.Title;
                 if (playList.Any()) my += "\nUp next: " + playList[0].Title;
                 var build = new EmbedBuilder
                 {
@@ -108,8 +118,8 @@ namespace Vita3KBot.Commands
             }
         }
 
-        [Group("clear")]
-        public class Clear : InteractiveBase {
+        [Group("clear"), InVoiceChannel]
+        public class Clear : ModuleBase<SocketCommandContext> {
             [Command, Name("clear")]
             [Summary("Clears the queue")]
             public async Task ClearTask()
@@ -119,54 +129,59 @@ namespace Vita3KBot.Commands
             }
         }
 
-        [Group("stop")]
-        public class Stop : InteractiveBase {
+        [Group("stop"), InVoiceChannel]
+        public class Stop : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("stop")]
             [Summary("Stops the current playing song.")]
             public async Task StopTask()
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
                 await player.StopAsync();
                 await ReplyAsync(
-                    "<:check:462378657114226695> Stopped playing. Your queue is still intact though. Use `clear` to Destroy Queue");
+                    "✅ Stopped playing. Your queue is still intact though. Use `clear` to Destroy Queue");
             }
         }
 
-        [Group("disconnect")]
-        public class Disconnect : InteractiveBase {
+        [Group("disconnect"), InVoiceChannel]
+        public class Disconnect : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("disconnect")]
             [Summary("Disconnects bot from voice channel")]
             public async Task LeaveTask()
             {
-                Stop stop = new Stop();
-                if (Bot.lavalinkManager.GetPlayer(Context.Guild.Id).Playing) await stop.StopTask();
-                await Bot.lavalinkManager.LeaveAsync(Context.Guild.Id);
+                if (Bot.lavaNode.GetPlayer(Context.Guild).PlayerState == PlayerState.Playing) {
+                    var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                    await player.StopAsync();
+                    await ReplyAsync(
+                    "✅ Stopped playing. Your queue is still intact though. Use `clear` to Destroy Queue");
+                }
+                await Bot.lavaNode.LeaveAsync(Bot.lavaNode.GetPlayer(Context.Guild).VoiceChannel);
             }
         }
 
-        [Group("queue")]
-        public class Queue : InteractiveBase {
+        [Group("queue"), InVoiceChannel]
+        public class Queue : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("queue")]
             [Summary("Prints the current queue")]
             public async Task QueueTask()
             {
                 var my = string.Empty;
                 var p = Context.Guild.Id.PlayList();
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                if (!p.Any() && !player.Playing)
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                if (!p.Any() && (player.PlayerState != PlayerState.Playing))
                 {
                     await ReplyAsync("The Queue is Empty.");
                 }
                 else
                 {
-                    if (player.Playing)
+                    if (player.PlayerState == PlayerState.Playing)
                         my +=
-                            $"👉 [{player.CurrentTrack.Title}]({player.CurrentTrack.Url}) **{player.CurrentTrack.Length}**\n";
+                            $"👉 [{player.Track.Title}]({player.Track.Url}) **{player.Track.Duration}**\n";
 
                     for (var i = 0; i < Math.Min(p.Count, 10); i++)
-                        my += $"**{i + 1}**. [{p[i].Title}]({p[i].Url}) **{p[i].Length}**\n";
+                        my += $"**{i + 1}**. [{p[i].Title}]({p[i].Url}) **{p[i].Duration}**\n";
                     var build = new EmbedBuilder
                     {
                         Title = "Current Queue",
@@ -183,14 +198,14 @@ namespace Vita3KBot.Commands
             }
         }
 
-        [Group("skip")]
+        [Group("skip"), InVoiceChannel]
         public class Skip : InteractiveBase {
             [Command(RunMode = RunMode.Async), Name("skip")]
             [Summary("Skips the current playing song. Broken AF.")]
             public async Task SkipTask()
             {
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
+                var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
+                             await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
                 var final = await ReplyAsync("<a:loader:461159122575032331> Searching");
                 try
                 {
@@ -212,7 +227,7 @@ namespace Vita3KBot.Commands
                 }
                 catch (Exception)
                 {
-                    if (player.Playing) await player.StopAsync();
+                    if (player.PlayerState == PlayerState.Playing) await player.StopAsync();
 
                     await final.ModifyAsync(x => x.Content = "Queue Empty");
                 }
@@ -228,23 +243,23 @@ namespace Vita3KBot.Commands
             }   
         }
 
-        [Group("play")]
+        [Group("play"), InVoiceChannel]
         public class Play : InteractiveBase {
             [Command(RunMode = RunMode.Async), Name("play")]
             [Summary("Plays a song from tong of sources")]
             public async Task PlayTask([Remainder] string query)
             {
-                var result = Uri.TryCreate(query, UriKind.Absolute, out var uriResult);
-                var identifier = result || query.Contains("ytsearch:") || query.Contains("scsearch")
-                    ? uriResult.ToString()
-                    : $"ytsearch:{query}";
-
                 var final = await ReplyAsync("<a:loader:461159122575032331> Searching");
-                var player = Bot.lavalinkManager.GetPlayer(Context.Guild.Id) ??
-                             await Bot.lavalinkManager.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                var response = await Bot.lavalinkManager.GetTracksAsync(identifier);
+                var voiceState = Context.User as IVoiceState;
+                LavaPlayer player;
+                if (Bot.lavaNode.HasPlayer(Context.Guild)) {
+                    player = Bot.lavaNode.GetPlayer(Context.Guild);
+                } else {
+                    player = await Bot.lavaNode.JoinAsync(voiceState.VoiceChannel, Context.Channel as ITextChannel);
+                }
+                var response = await Bot.lavaNode.SearchYouTubeAsync(query);
 
-                if (response.LoadType == LoadType.LoadFailed)
+                if (response.LoadStatus == LoadStatus.LoadFailed)
                 {
                     await final.ModifyAsync(x =>
                     {
@@ -266,7 +281,7 @@ namespace Vita3KBot.Commands
                     return;
                 }
 
-                if (response.LoadType == LoadType.NoMatches)
+                if (response.LoadStatus == LoadStatus.NoMatches)
                 {
                     await final.ModifyAsync(x =>
                     {
@@ -290,15 +305,15 @@ namespace Vita3KBot.Commands
 
                 var allTracks = response.Tracks.ToList();
 
-                var tracks = response.LoadType == LoadType.PlaylistLoaded
+                var tracks = response.LoadStatus == LoadStatus.PlaylistLoaded
                     ? allTracks
                     : allTracks.Take(Math.Min(10, allTracks.Count)).ToList();
 
-                if (response.LoadType == LoadType.PlaylistLoaded)
+                if (response.LoadStatus == LoadStatus.PlaylistLoaded)
                 {
                     foreach (var track in tracks) Context.Guild.Id.PushTrack(track);
 
-                    if (!player.Playing)
+                    if (player.PlayerState != PlayerState.Playing)
                     {
                         var lavalinkTrack = Context.Guild.Id.PopTrack();
                         await player.PlayAsync(lavalinkTrack);
@@ -327,7 +342,7 @@ namespace Vita3KBot.Commands
                 {
                     var my = string.Empty;
                     for (var i = 0; i < tracks.Count; i++)
-                        my += $"{i + 1}. [{tracks[i].Title}]({tracks[i].Url})  **Duration: {tracks[i].Length}**\n";
+                        my += $"{i + 1}. [{tracks[i].Title}]({tracks[i].Url})  **Duration: {tracks[i].Duration}**\n";
 
                     var build = new EmbedBuilder
                     {
@@ -357,14 +372,14 @@ namespace Vita3KBot.Commands
                     var track = tracks[good - 1];
                     Context.Guild.Id.PushTrack(track);
 
-                    if (!player.Playing)
+                    if (player.PlayerState != PlayerState.Playing)
                     {
                         var lavalinkTrack = Context.Guild.Id.PopTrack();
                         await player.PlayAsync(lavalinkTrack);
                         await final.ModifyAsync(x =>
                         {
                             x.Embed = null;
-                            x.Content = $"<:check:462378657114226695> Playing **{lavalinkTrack.Title}** now";
+                            x.Content = $"✅ Playing **{lavalinkTrack.Title}** now";
                         });
                     }
                     else
@@ -372,10 +387,36 @@ namespace Vita3KBot.Commands
                         await final.ModifyAsync(x =>
                         {
                             x.Embed = null;
-                            x.Content = $"<:check:462378657114226695> Added **{track.Title}** to Queue.";
+                            x.Content = $"✅ Added **{track.Title}** to Queue.";
                         });
                     }
                 }
             }
         }
+    public class MusicModule {
+        public static async Task PlayNextTrack(TrackEndedEventArgs args) {
+            var player = args.Player;
+            var final = await player.TextChannel.SendMessageAsync("<a:loader:461159122575032331> Playing the next song");
+            try {
+                var track = player.TextChannel.Guild.Id.PopTrack();
+                var playing = new EmbedBuilder {
+                    Title = "Now Playing",
+                    Description = track.Title,
+                    Color = new Color(213, 0, 249)
+                }.Build();
+
+                await player.StopAsync();
+                await player.PlayAsync(track);
+                await final.ModifyAsync(x =>
+                {
+                    x.Embed = playing;
+                    x.Content = null;
+                });
+            } catch (Exception) {
+                if (player.PlayerState == PlayerState.Playing) await player.StopAsync();
+
+                await final.ModifyAsync(x => x.Content = "Queue has ended");
+            }
+        }
+    }
 }

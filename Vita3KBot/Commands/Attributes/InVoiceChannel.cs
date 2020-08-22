@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 
-namespace Vita3KBot.Preconditions
+namespace Vita3KBot.Commands.Attributes
 {
     public class InVoiceChannel : PreconditionAttribute
     {

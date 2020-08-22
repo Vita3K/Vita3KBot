@@ -4,19 +4,18 @@
    
    <OutputType>Exe</OutputType>
    
-   <TargetFramework>netcoreapp2.1</TargetFramework>
+   <TargetFramework>netcoreapp3.1</TargetFramework>
        <RootNamespace>Vita3KBot</RootNamespace>
     <LangVersion>latest</LangVersion>      
     <Configurations>Debug;Release;Testing</Configurations>
    </PropertyGroup>
 
     <ItemGroup>
-    <PackageReference Include="Discord.Addons.Interactive" Version="1.0.1" />
-    <PackageReference Include="Discord.Net" Version="2.1.1" />
-    <PackageReference Include="DiscordBotsList.Api" Version="1.3.0" />
-    <PackageReference Include="SharpLink" Version="1.0.0-beta-0005" />
+    <PackageReference Include="Discord.Addons.Interactive" Version="2.0.0" />
+    <PackageReference Include="Discord.Net" Version="2.2.0" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-      <PackageReference Include="Octokit" Version="0.46.0" />
+      <PackageReference Include="Octokit" Version="0.48.0" />
+      <PackageReference Include="Victoria" Version="5.1.8" />
     </ItemGroup>
 
 </Project>

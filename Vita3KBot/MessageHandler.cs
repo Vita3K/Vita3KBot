@@ -9,6 +9,7 @@ using Discord.Addons.Interactive;
 using Discord.WebSocket;
 
 using Microsoft.Extensions.DependencyInjection;
+using Victoria;
 
 namespace Vita3KBot {
     public class MessageHandler {
@@ -95,6 +96,9 @@ namespace Vita3KBot {
                 .AddSingleton(_client)
                 .AddSingleton(_commands)
                 .AddSingleton(new InteractiveService(_client))
+                .AddLavaNode(x => {
+                    x.SelfDeaf = false;
+                })
                 .BuildServiceProvider();
         }
     }

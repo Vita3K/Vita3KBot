@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using Victoria;
-using Victoria.EventArgs;
 using Vita3KBot.Commands;
 
 namespace Vita3KBot {
@@ -37,7 +36,8 @@ namespace Vita3KBot {
                 if (!lavaNode.IsConnected)
                     await lavaNode.ConnectAsync();
             };
-            lavaNode.OnTrackEnded += MusicModule.PlayNextTrack;
+            lavaNode.OnTrackEnded += MusicModule.OnTrackEnded;
+            lavaNode.OnTrackStarted += MusicModule.OnTrackStarted;
 
             await Task.Delay(-1);
         }

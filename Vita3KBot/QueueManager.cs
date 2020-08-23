@@ -39,5 +39,9 @@ namespace Vita3KBot
             Queue.TryAdd(guildId, new Queue<LavaTrack>());
             return Queue[guildId].ToList();
         }
+
+        public static int GetQueueCount(this ulong guildId) {
+            return Queue[guildId].Count;
+        }
     }
 }

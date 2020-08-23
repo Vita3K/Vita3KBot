@@ -209,7 +209,7 @@ namespace Vita3KBot.Commands
             {
                 var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
                              await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                var final = await ReplyAsync("<a:loader:461159122575032331> Searching");
+                var final = await ReplyAsync("<a:🧐:461159122575032331> Searching");
                 try
                 {
                     var track = Context.Guild.Id.PopTrack();
@@ -253,7 +253,7 @@ namespace Vita3KBot.Commands
             [Summary("Plays a song from tong of sources")]
             public async Task PlayTask([Remainder] string query)
             {
-                var final = await ReplyAsync("<a:face_with_monocle:461159122575032331> Searching");
+                var final = await ReplyAsync("<a:🧐:461159122575032331> Searching");
                 var voiceState = Context.User as IVoiceState;
                 LavaPlayer player;
                 if (Bot.lavaNode.HasPlayer(Context.Guild)) {
@@ -400,7 +400,7 @@ namespace Vita3KBot.Commands
     public class MusicModule {
         public static async Task PlayNextTrack(TrackEndedEventArgs args) {
             var player = args.Player;
-            var final = await player.TextChannel.SendMessageAsync("<a:face_with_monocle:461159122575032331> Playing the next song");
+            var final = await player.TextChannel.SendMessageAsync("<a:🧐:461159122575032331> Playing the next song");
             try {
                 var track = player.TextChannel.Guild.Id.PopTrack();
                 var playing = new EmbedBuilder {

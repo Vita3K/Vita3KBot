@@ -38,6 +38,7 @@ namespace Vita3KBot.Commands
         }
 
         [Group("volume"), InVoiceChannel]
+        [Alias("v")]
         public class Volume : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("volume")]
             [Summary("Sets the volume for the current playing song 0-150")]
@@ -144,6 +145,7 @@ namespace Vita3KBot.Commands
         }
 
         [Group("disconnect"), InVoiceChannel]
+        [Alias("dc")]
         public class Disconnect : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("disconnect")]
             [Summary("Disconnects bot from voice channel")]
@@ -161,6 +163,7 @@ namespace Vita3KBot.Commands
         }
 
         [Group("queue"), InVoiceChannel]
+        [Alias("q")]
         public class Queue : ModuleBase<SocketCommandContext> {
             [Command(RunMode = RunMode.Async), Name("queue")]
             [Summary("Prints the current queue")]
@@ -206,7 +209,7 @@ namespace Vita3KBot.Commands
             {
                 var player = Bot.lavaNode.GetPlayer(Context.Guild) ??
                              await Bot.lavaNode.JoinAsync((Context.User as IGuildUser)?.VoiceChannel);
-                var final = await ReplyAsync("<a:loader:461159122575032331> Searching");
+                var final = await ReplyAsync("🧐 Searching");
                 try
                 {
                     var track = Context.Guild.Id.PopTrack();
@@ -244,12 +247,13 @@ namespace Vita3KBot.Commands
         }
 
         [Group("play"), InVoiceChannel]
+        [Alias("p")]
         public class Play : InteractiveBase {
             [Command(RunMode = RunMode.Async), Name("play")]
             [Summary("Plays a song from tong of sources")]
             public async Task PlayTask([Remainder] string query)
             {
-                var final = await ReplyAsync("<a:loader:461159122575032331> Searching");
+                var final = await ReplyAsync("🧐 Searching");
                 var voiceState = Context.User as IVoiceState;
                 LavaPlayer player;
                 if (Bot.lavaNode.HasPlayer(Context.Guild)) {
@@ -396,7 +400,7 @@ namespace Vita3KBot.Commands
     public class MusicModule {
         public static async Task PlayNextTrack(TrackEndedEventArgs args) {
             var player = args.Player;
-            var final = await player.TextChannel.SendMessageAsync("<a:loader:461159122575032331> Playing the next song");
+            var final = await player.TextChannel.SendMessageAsync("🧐 Playing the next song");
             try {
                 var track = player.TextChannel.Guild.Id.PopTrack();
                 var playing = new EmbedBuilder {

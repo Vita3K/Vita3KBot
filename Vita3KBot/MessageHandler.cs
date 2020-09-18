@@ -25,7 +25,18 @@ namespace Vita3KBot {
         // Called for each user message. Use it to collect stats, or silently observe stuff, etc.
         private static async Task MonitorMessage(SocketUserMessage message) {
             if (!(message.Author is SocketGuildUser user) || message.Author.IsBot) return;
-            
+            if(message.ToString().Contains("https://omg-airdrop.io")) {
+                var embed = new EmbedBuilder()
+                .WithTitle("Scam link detected and message deleted")
+                .WithDescription(message.Content)
+                .AddField("Sent by", message.Author.Mention)
+                .AddField("In Channel", message.Channel)
+                .WithColor(Color.Red)
+                .Build();
+                var channel = message.Channel as SocketGuildChannel;
+                await channel.Guild.GetTextChannel(577624167541637158).SendMessageAsync(embed: embed);
+                await message.DeleteAsync();
+            }
             //TODO: Put Persona 4 Golden monitoring here.
         }
 

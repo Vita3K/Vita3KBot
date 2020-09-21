@@ -34,7 +34,7 @@ namespace Vita3KBot {
                 .WithColor(Color.Red)
                 .Build();
                 var channel = message.Channel as SocketGuildChannel;
-                await channel.Guild.GetTextChannel(577624167541637158).SendMessageAsync(embed: embed);
+                await channel.Guild.GetTextChannel(757604199159824385).SendMessageAsync(embed: embed);
                 await message.DeleteAsync();
             }
             //TODO: Put Persona 4 Golden monitoring here.

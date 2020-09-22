@@ -58,13 +58,9 @@ namespace Vita3KBot.Commands {
                     }
                     else if (whitelisted || moderator) {
                         if (CommandsUtils.CommandRequiresModerator(subcommand) && moderator) {
-                            System.Console.WriteLine("Mod command");
-                            System.Console.WriteLine(subcommand.Name);
                             subcommandsList.Add($"{subcommand.Name}");
                         }
                         if (CommandsUtils.CommandRequiresWhitelistedRole(subcommand) && whitelisted) {
-                            System.Console.WriteLine("Whitelisted role command");
-                            System.Console.WriteLine(subcommand.Name);
                             subcommandsList.Add($"{subcommand.Name}");
                         }
                     }
@@ -99,13 +95,9 @@ namespace Vita3KBot.Commands {
                     }
                     else if (whitelisted || moderator) {
                         if (CommandsUtils.CommandRequiresModerator(command) && moderator) {
-                            System.Console.WriteLine("Mod command");
-                            System.Console.WriteLine(command.Name);
                             commandList.Add($"`{command.Name}`");
                         }
                         if (CommandsUtils.CommandRequiresWhitelistedRole(command) && whitelisted) {
-                            System.Console.WriteLine("Whitelisted role command");
-                            System.Console.WriteLine(command.Name);
                             commandList.Add($"`{command.Name}`");
                         }
                     }

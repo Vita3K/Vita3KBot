@@ -3,6 +3,7 @@
 .vscode
 Vita3KBot/obj
 Vita3KBot/bin
+Vita3KBot/bot.db
 Vita3KBot/token.txt
 Vita3KBot.sln.DotSettings.user
 Vita3KBot.sln.DotSettings

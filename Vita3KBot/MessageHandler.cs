@@ -7,6 +7,7 @@ using Discord;
 using Discord.Commands;
 using Discord.Addons.Interactive;
 using Discord.WebSocket;
+using Vita3KBot.Database;
 
 using Microsoft.Extensions.DependencyInjection;
 using Victoria;
@@ -25,17 +26,22 @@ namespace Vita3KBot {
         // Called for each user message. Use it to collect stats, or silently observe stuff, etc.
         private static async Task MonitorMessage(SocketUserMessage message) {
             if (!(message.Author is SocketGuildUser user) || message.Author.IsBot) return;
-            if(message.ToString().Contains("https://omg-airdrop.io")) {
-                var embed = new EmbedBuilder()
-                .WithTitle("Scam link detected and message deleted")
-                .WithDescription(message.Content)
-                .AddField("Sent by", message.Author.Mention)
-                .AddField("In Channel", message.Channel)
-                .WithColor(Color.Red)
-                .Build();
-                var channel = message.Channel as SocketGuildChannel;
-                await channel.Guild.GetTextChannel(757604199159824385).SendMessageAsync(embed: embed);
-                await message.DeleteAsync();
+            try {
+                using var db = new BotDb();
+                if (!RolesUtils.IsModerator(message.Author) && db.blacklistTerms.Any(term => message.Content.Contains(term.BlacklistedText))) {
+                    var embed = new EmbedBuilder()
+                    .WithTitle("Scam link detected and message deleted")
+                    .WithDescription(message.Content)
+                    .AddField("Sent by", message.Author.Mention)
+                    .AddField("In Channel", message.Channel)
+                    .WithColor(Color.Red)
+                    .Build();
+                    var channel = message.Channel as SocketGuildChannel;
+                    await channel.Guild.GetTextChannel(757604199159824385).SendMessageAsync(embed: embed).ConfigureAwait(false);
+                    await message.DeleteAsync().ConfigureAwait(false);
+                }
+            } catch(Exception ex) {
+                Console.WriteLine(ex);
             }
             //TODO: Put Persona 4 Golden monitoring here.
         }

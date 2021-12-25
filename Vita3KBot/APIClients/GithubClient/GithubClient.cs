@@ -11,7 +11,7 @@ namespace APIClients {
         public static async Task<Embed> GetLatestBuild() {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
-            Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continous");
+            Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
             ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("ubuntu-latest");
             }).First();

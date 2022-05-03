@@ -7,6 +7,7 @@ using Discord.WebSocket;
 using Vita3KBot.Database;
 
 using Microsoft.Extensions.DependencyInjection;
+using APIClients;
 
 namespace Vita3KBot.Services {
     public class MessageHandlingService {
@@ -36,6 +37,16 @@ namespace Vita3KBot.Services {
             //TODO: Put Persona 4 Golden monitoring here.
         }
 
+        private static async Task MonitorNewBuilds(SocketUserMessage msg) {
+            if (msg.Channel.Name != "github" && msg.Author.ToString() != "GitHub#0000") return;
+            var embed = msg.Embeds.FirstOrDefault();
+
+            if (embed != null && embed.Title == "[Vita3K/Vita3K] New release published: continuous") {
+                var guild = (msg.Channel as SocketGuildChannel).Guild;
+                await guild.GetTextChannel(965725409574539274).SendMessageAsync(embed: await GithubClient.GetLatestBuild());
+            }
+        }
+
         // User join event
         private async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
             if (j_user.IsBot || j_user.IsWebhook) return;
@@ -52,6 +63,7 @@ namespace Vita3KBot.Services {
             if (!(message is SocketUserMessage userMessage)) return;
 
             await MonitorMessage(userMessage);
+            await MonitorNewBuilds(userMessage);
         }
 
         // Initializes the Message Handler, subscribe to events, etc.

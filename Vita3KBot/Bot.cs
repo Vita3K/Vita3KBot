@@ -1,45 +1,34 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Discord;
+using Discord.Commands;
 using Discord.WebSocket;
-using Victoria;
-using Vita3KBot.Commands;
+using Microsoft.Extensions.DependencyInjection;
+using Vita3KBot.Services;
 
 namespace Vita3KBot {
     public class Bot {
         private readonly string _token;
 
-        private DiscordSocketClient _client;
-        private MessageHandler _handler;
-        public static LavaNode lavaNode;
-
         // Initializes Discord.Net
         private async Task Start() {
-            _client = new DiscordSocketClient();
-            _handler = new MessageHandler(_client);
-            lavaNode = new LavaNode(_client, new LavaConfig {
-                Authorization = "youshallnotpass",
-                Hostname = "localhost",
-                Port = 2333,
-                ReconnectAttempts = 3,
-                ReconnectDelay = TimeSpan.FromSeconds(5)
-            });
+            using (var services = ConfigureServices()) {
 
-            await _handler.Init();
-            
-            await _client.LoginAsync(TokenType.Bot, _token);
-            await _client.StartAsync();
+                var client = services.GetRequiredService<DiscordSocketClient>();
+                client.Log += LogAsync;
+                services.GetRequiredService<CommandService>().Log += LogAsync;
 
-            _client.Ready += async () => {
-                if (!lavaNode.IsConnected)
-                    await lavaNode.ConnectAsync();
-            };
-            lavaNode.OnTrackEnded += MusicModule.OnTrackEnded;
-            lavaNode.OnTrackStarted += MusicModule.OnTrackStarted;
+                await client.LoginAsync(TokenType.Bot, _token);
+                await client.StartAsync();
 
-            await Task.Delay(-1);
+                await services.GetRequiredService<CommandHandlingService>().InitializeAsync();
+                services.GetRequiredService<MessageHandlingService>().Initialize();
+
+                await Task.Delay(Timeout.Infinite);
+            }
         }
         
         private Bot(string token) {
@@ -56,9 +45,35 @@ namespace Vita3KBot {
             try {
                 var bot = new Bot(File.ReadAllText("token.txt"));
                 bot.Start().GetAwaiter().GetResult();
-            } catch (IOException e) {
+            } catch (IOException) {
                 Console.WriteLine("Could not read from token.txt. Did you run `init <token>`?");
             }
+        }
+
+        // Called by Discord.Net when it wants to log something.
+        private Task LogAsync(LogMessage log) {
+            Console.WriteLine(log.ToString());
+
+            return Task.CompletedTask;
+        }
+
+        private ServiceProvider ConfigureServices() {
+            var config = new DiscordSocketConfig
+            {
+                GatewayIntents = GatewayIntents.Guilds
+                    | GatewayIntents.DirectMessages
+                    | GatewayIntents.GuildMessages
+                    | GatewayIntents.GuildMembers,
+            };
+
+            var client = new DiscordSocketClient(config);
+
+            return new ServiceCollection()
+                .AddSingleton(client)
+                .AddSingleton<CommandService>()
+                .AddSingleton<CommandHandlingService>()
+                .AddSingleton<MessageHandlingService>()
+                .BuildServiceProvider();
         }
     }
 }

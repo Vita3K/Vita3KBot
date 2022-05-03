@@ -13,7 +13,7 @@ namespace Vita3KBot.Commands.Attributes {
                 if (RolesUtils.IsModerator(context, context.Guild as SocketGuild)) {
                     return Task.FromResult(PreconditionResult.FromSuccess());
                 } else {
-                    return Task.FromResult(PreconditionResult.FromError("You lack the permissions to exectue this command"));
+                    return Task.FromResult(PreconditionResult.FromError("You lack the permissions to execute this command"));
                 }
             } else {
                 return Task.FromResult(PreconditionResult.FromError("You must be in a server to execute this command"));

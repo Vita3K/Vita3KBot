@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
@@ -19,7 +20,7 @@ namespace APIClients {
             0x06, 0x82, 0x1C, 0x52, 0xF2, 0xAB, 0x5D, 0x2B, 0x4A, 0xBD, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14
         };
         private static HMACSHA256 HMAC = new HMACSHA256(HMACKey);
-        private static readonly string BaseURL = "https://gs-sec.ww.np.dl.playstation.net/pl/np/";
+        private static readonly string BaseURL = "http://gs-sec.ww.np.dl.playstation.net/pl/np/";
         //all firmware regions are the same therefore use US as default
         private static readonly string FirmwareXML = "http://fus01.psp2.update.playstation.net/update/psp2/list/us/psp2-updatelist.xml";
         private static readonly XmlSerializer FWSerializer = new XmlSerializer(typeof(UpdateDataList));
@@ -27,9 +28,6 @@ namespace APIClients {
 
         public static Embed GetTitlePatch(string titleId) {
             string url = ConvertTitleIDToHash(titleId);
-
-            // Needed to bypass certificate errors
-            ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
             var noUpdatesEmbed = new EmbedBuilder
             {
@@ -42,6 +40,11 @@ namespace APIClients {
             // Almost all games with no updates don't return an empty XML so i'm forced to do this hack
             // We also can't differentiate between valid IDs and games with no updates
             try { xmlDoc.Load(url); }
+            catch (HttpRequestException e) {
+                if (e.StatusCode == HttpStatusCode.NotFound) {
+                    return noUpdatesEmbed.Build();
+                }
+            }
             catch (WebException) { return noUpdatesEmbed.Build(); }
             catch (XmlException) { return noUpdatesEmbed.Build(); }
 

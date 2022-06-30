@@ -20,7 +20,7 @@ namespace APIClients {
             }).First();
 
             string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf(":") + 1).Trim();
-            commit = commit.Substring(0, commit.Length - 1);
+            commit = commit.Substring(0, commit.IndexOf("\n"));
             GitHubCommit REF = await github.Repository.Commit.Get("Vita3k", "Vita3k", commit);
             Issue prInfo = await GetPRInfo(github, commit);
 

@@ -15,6 +15,9 @@ namespace APIClients {
             ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("ubuntu-latest");
             }).First();
+            ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("macos-latest");
+            }).First();
             ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("windows-latest");
             }).First();
@@ -35,7 +38,8 @@ namespace APIClients {
             LatestBuild.WithDescription($"{REF.Commit.Message}")
             .WithColor(Color.Orange)
             .AddField("Windows", $"[{windowsRelease.Name}]({windowsRelease.BrowserDownloadUrl})")
-            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl})");
+            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl})")
+            .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})");
 
             return LatestBuild.Build();
         }

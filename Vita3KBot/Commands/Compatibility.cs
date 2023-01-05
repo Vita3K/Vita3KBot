@@ -76,7 +76,7 @@ namespace Vita3KBot.Commands {
 
                 var foundStatus = false;
                 foreach (var name in StatusNames) {
-                    foreach (var label in issue.labels) {
+                    foreach (var label in issue.Labels) {
                         if (name.ToLower().Equals(label.Name.ToLower())) {
                             Status = name;
                             foundStatus = true;

@@ -1,5 +1,4 @@
-Persona now shows the first part of the intro!
-https://cdn.discordapp.com/attachments/523577503516852226/603630739564789780/p4g.mp4
+P4G is now Playable!
 
-We have yet to see the opening video or the main menus due to unimplemented modules (avcodec) or just flat out crashes.
-Any future news will be posted in <#523577503516852226>, and you will be pinged.
+Inaba-a quiet town in rural Japan sets the scene for budding adolescence in Persona 4 Golden.
+A coming of age story that sets the protagonist and his friends on a journey kickstarted by a chain of serial murders. Explore meeting kindred spirits, feelings of belonging, and even confronting the darker sides of one's self.

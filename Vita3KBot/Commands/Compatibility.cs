@@ -100,7 +100,8 @@ namespace Vita3KBot.Commands {
                 Repos = new RepositoryCollection {
                     "Vita3K/homebrew-compatibility",
                     "Vita3K/compatibility"
-                }
+                },
+                State = ItemState.Open,
             };
             
             var keywords = keyword.ToLower().Split(' ');

@@ -47,6 +47,15 @@ namespace Vita3KBot.Services {
             }
         }
 
+        private static async Task MonitorMediaMessages(SocketUserMessage msg) {
+            if (msg.Channel.Name == "media" &&
+                    msg.Attachments.Count == 0 &&
+                    !msg.Content.Contains("youtube.com") &&
+                    !msg.Content.Contains("youtu.be")) {
+                await msg.DeleteAsync();
+            }
+        }
+
         // User join event
         private async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
             if (j_user.IsBot || j_user.IsWebhook) return;
@@ -64,6 +73,7 @@ namespace Vita3KBot.Services {
 
             await MonitorMessage(userMessage);
             await MonitorNewBuilds(userMessage);
+            await MonitorMediaMessages(userMessage);
         }
 
         // Initializes the Message Handler, subscribe to events, etc.

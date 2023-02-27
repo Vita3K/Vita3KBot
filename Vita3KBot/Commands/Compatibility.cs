@@ -8,6 +8,7 @@ using Discord.Commands;
 
 using APIClients;
 using Octokit;
+using System.Globalization;
 
 namespace Vita3KBot.Commands {
     [Group("compat")]
@@ -55,6 +56,7 @@ namespace Vita3KBot.Commands {
             private readonly Issue _issue;
             public readonly bool IsHomebrew;
             public readonly string Status;
+            public readonly Color LabelColor;
             public string LatestComment;
             public string LatestProfileImage;
 
@@ -73,12 +75,14 @@ namespace Vita3KBot.Commands {
                 // Repository object is sometimes null on searches. Just guess the repo by the URL.
                 IsHomebrew = issue.Url.Contains(HomebrewRepo);
                 Status = "Unknown";
+                LabelColor = Color.Orange;
 
                 var foundStatus = false;
                 foreach (var name in StatusNames) {
                     foreach (var label in issue.Labels) {
                         if (name.ToLower().Equals(label.Name.ToLower())) {
                             Status = name;
+                            LabelColor = new Color(UInt32.Parse(label.Color, NumberStyles.HexNumber));
                             foundStatus = true;
                             break;
                         }
@@ -121,7 +125,7 @@ namespace Vita3KBot.Commands {
                     var builder = new EmbedBuilder()
                         .WithTitle("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
                         .WithDescription("Status: **" + info.Status + "**\n\n" + info.LatestComment)
-                        .WithColor(Color.Red)
+                        .WithColor(info.LabelColor)
                         .WithUrl(issue.HtmlUrl)
                         .WithCurrentTimestamp();
                     if (info.LatestProfileImage.Length > 0) builder.WithThumbnailUrl(info.LatestProfileImage);

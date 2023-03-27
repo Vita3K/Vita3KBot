@@ -51,7 +51,8 @@ namespace Vita3KBot.Services {
             if (msg.Channel.Name == "media" &&
                     msg.Attachments.Count == 0 &&
                     !msg.Content.Contains("youtube.com") &&
-                    !msg.Content.Contains("youtu.be")) {
+                    !msg.Content.Contains("youtu.be") &&
+                    !msg.Content.Contains("streamable.com")) {
                 await msg.DeleteAsync();
             }
         }

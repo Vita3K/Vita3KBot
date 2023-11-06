@@ -34,7 +34,7 @@ namespace Vita3KBot.Services {
             } catch(Exception ex) {
                 Console.WriteLine(ex);
             }
-            //TODO: Put Persona 4 Golden monitoring here.
+            //You can put some monitoring here.
         }
 
         private static async Task MonitorNewBuilds(SocketUserMessage msg) {
@@ -50,9 +50,11 @@ namespace Vita3KBot.Services {
         private static async Task MonitorMediaMessages(SocketUserMessage msg) {
             if (msg.Channel.Name == "media" &&
                     msg.Attachments.Count == 0 &&
-                    !msg.Content.Contains("youtube.com") &&
+                    !msg.Content.Contains("youtube.com") && 
                     !msg.Content.Contains("youtu.be") &&
-                    !msg.Content.Contains("streamable.com")) {
+                    !msg.Content.Contains("streamable.com") &&
+                    !msg.Content.Contains("x.com") && 
+                    !msg.Content.Contains("twitter.com")) {
                 await msg.DeleteAsync();
             }
         }
@@ -61,11 +63,11 @@ namespace Vita3KBot.Services {
         private async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
             if (j_user.IsBot || j_user.IsWebhook) return;
             var dmChannel = await j_user.CreateDMChannelAsync();
-            await dmChannel.SendMessageAsync("Welcome to Vita3k! \n " +
+            await dmChannel.SendMessageAsync("Welcome to Vita3K! \n " +
                 "Please read the server <#415122640051896321> and <#486173784135696418> thoroughly before posting. \n " + "\n " +
-                "For the latest up-to-date guide on game installation and hardware requirements, please visit <https://vita3k.org/quickstart.html> \n " + "\n " +
-                "This emulator is still in it's early stages and most commercial games do not run yet! Feedback is greatly appreciated. \n " +
-                "For current issues with the emulator visit the GitHub repo at https://github.com/Vita3K/Vita3K/issues");
+                "For the latest up-to-date guide on game installation and hardware requirements, please visit <https://vita3k.org/quickstart.html>. \n " + "\n " +
+                "This emulator is still in it's early stages and some commercial games do not run yet! Feedback is greatly appreciated. \n " +
+                "For current issues with the emulator visit the GitHub repo at https://github.com/Vita3K/Vita3K/issues.");
         }
 
         // Called by Discord.Net when the bot receives a message.

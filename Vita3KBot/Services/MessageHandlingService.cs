@@ -50,10 +50,10 @@ namespace Vita3KBot.Services {
         private static async Task MonitorMediaMessages(SocketUserMessage msg) {
             if (msg.Channel.Name == "media" &&
                     msg.Attachments.Count == 0 &&
-                    !msg.Content.Contains("youtube.com") && 
+                    !msg.Content.Contains("youtube.com") &&
                     !msg.Content.Contains("youtu.be") &&
                     !msg.Content.Contains("streamable.com") &&
-                    !msg.Content.Contains("x.com") && 
+                    !msg.Content.Contains("x.com") &&
                     !msg.Content.Contains("twitter.com")) {
                 await msg.DeleteAsync();
             }

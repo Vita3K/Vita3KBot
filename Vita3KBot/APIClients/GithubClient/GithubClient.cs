@@ -12,14 +12,17 @@ namespace APIClients {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
             Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
+            ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("windows-latest");
+            }).First();
             ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("ubuntu-latest");
             }).First();
+            ReleaseAsset appimageRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("Vita3K-x86_64.AppImage");
+            }).First();
             ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("macos-latest");
-            }).First();
-            ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("windows-latest");
             }).First();
 
             string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf(":") + 1).Trim();
@@ -38,7 +41,7 @@ namespace APIClients {
             LatestBuild.WithDescription($"{REF.Commit.Message}")
             .WithColor(Color.Orange)
             .AddField("Windows", $"[{windowsRelease.Name}]({windowsRelease.BrowserDownloadUrl})")
-            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl})")
+            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl}), [{appimageRelease.Name}]({appimageRelease.BrowserDownloadUrl})")
             .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})");
 
             return LatestBuild.Build();

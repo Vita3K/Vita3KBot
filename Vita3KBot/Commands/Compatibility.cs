@@ -108,7 +108,7 @@ namespace Vita3KBot.Commands {
                 State = ItemState.Open,
             };
             
-            var keywords = keyword.ToLower().Split(' ');
+            var keywords = keyword.ToLower().Replace("&", " ").Replace("#", " ").Split(' ');
             var searchResults = (await github.Search.SearchIssues(search)).Items;
             // The following makes sure all the keywords are contained in each title, and removes the ones that don't.
             var filteredResults = searchResults.Where(
@@ -123,7 +123,7 @@ namespace Vita3KBot.Commands {
                     var info = new TitleInfo(issue);
                     await info.FetchCommentInfo(github);
                     var builder = new EmbedBuilder()
-                        .WithTitle("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
+                        .WithTitle("*" + issue.Title.Replace("*", "\\*") + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
                         .WithDescription("Status: **" + info.Status + "**\n\n" + info.LatestComment)
                         .WithColor(info.LabelColor)
                         .WithUrl(issue.HtmlUrl)
@@ -140,7 +140,7 @@ namespace Vita3KBot.Commands {
                         var issue = filteredResults[a];
                         var info = new TitleInfo(issue);
                         var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
-                        description.Append($"*[{issue.Title}]({issue.HtmlUrl})* ({homebrewText}): **{info.Status}**\n");
+                        description.Append($"*[{issue.Title.Replace("*", "\\*")}]({issue.HtmlUrl})* ({homebrewText}): **{info.Status}**\n");
                     }
                     if (filteredResults.Count > MaxItemsToDisplay) description.Append("...");
 

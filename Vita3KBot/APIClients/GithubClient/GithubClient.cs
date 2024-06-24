@@ -11,17 +11,21 @@ namespace APIClients {
         public static async Task<Embed> GetLatestBuild() {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
-            Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
-            ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
+            Release latestRelease = await github.Repository.Release.Get("Vita3K", "Vita3K", "continuous");
+            string buildVariable = latestRelease.Body.Substring(latestRelease.Body.IndexOf("Build:") + 1).Trim();
+            buildVariable = buildVariable.Substring(0, buildVariable.IndexOf("\n"));
+            Release buildRelease = await github.Repository.Release.Get("Vita3K", "Vita3K-builds", buildVariable);
+
+            ReleaseAsset windowsRelease = buildRelease.Assets.Where(release => {
                 return release.Name.StartsWith("windows-latest");
             }).First();
-            ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
+            ReleaseAsset linuxRelease = buildRelease.Assets.Where(release => {
                 return release.Name.StartsWith("ubuntu-latest");
             }).First();
-            ReleaseAsset appimageRelease = latestRelease.Assets.Where(release => {
+            ReleaseAsset appimageRelease = buildRelease.Assets.Where(release => {
                 return release.Name.StartsWith("Vita3K-x86_64.AppImage");
             }).First();
-            ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
+            ReleaseAsset macosRelease = buildRelease.Assets.Where(release => {
                 return release.Name.StartsWith("macos-latest");
             }).First();
 

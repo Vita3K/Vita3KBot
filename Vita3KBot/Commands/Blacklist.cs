@@ -1,4 +1,6 @@
 using System.Linq;
+using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -39,7 +41,17 @@ namespace Vita3KBot.Commands {
                     }
                 }
                 if (terms.Count != 0) {
-                    await ReplyAsync($"`{string.Join(", ", terms)}`").ConfigureAwait(false);
+                    var termsString = $"`{string.Join(", ", terms)}`";
+
+                    if (termsString.Length > 2000) {
+                        termsString = string.Join("\n", terms);
+                        byte[] byteArray = Encoding.UTF8.GetBytes(termsString);
+                        using (MemoryStream stream = new MemoryStream(byteArray)) {
+                            await Context.Channel.SendFileAsync(stream, "blacklist.txt", "Blacklist string is too big for discord, sending as file.");
+                        }
+                    } else {
+                        await ReplyAsync(termsString).ConfigureAwait(false);
+                    }
                 }
             }
         }

@@ -15,6 +15,7 @@ namespace Vita3KBot.Commands {
     public class Compatibility: ModuleBase<SocketCommandContext> {
         // Config
         private const int MaxItemsToDisplay = 8;
+        private const int MaxDescriptionLength = 4096;
 
         private const string HomebrewRepo = "homebrew-compatibility";
         private const string CommercialRepo = "compatibility";
@@ -122,9 +123,13 @@ namespace Vita3KBot.Commands {
                     var issue = filteredResults.First();
                     var info = new TitleInfo(issue);
                     await info.FetchCommentInfo(github);
+                    var description = "Status: **" + info.Status + "**\n\n" + info.LatestComment;
+                    if (description.Length > 4096) {
+                        description = description.Substring(0, MaxDescriptionLength - 3) + "...";
+                    }
                     var builder = new EmbedBuilder()
                         .WithTitle("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
-                        .WithDescription("Status: **" + info.Status + "**\n\n" + info.LatestComment)
+                        .WithDescription(description)
                         .WithColor(info.LabelColor)
                         .WithUrl(issue.HtmlUrl)
                         .WithCurrentTimestamp();

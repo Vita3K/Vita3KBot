@@ -12,6 +12,7 @@ namespace APIClients {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
             Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
+            string releaseTime = $"Published at {latestRelease.PublishedAt:u}";
             ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("windows-latest");
             }).First();
@@ -42,7 +43,8 @@ namespace APIClients {
             .WithColor(Color.Orange)
             .AddField("Windows", $"[{windowsRelease.Name}]({windowsRelease.BrowserDownloadUrl})")
             .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl}), [{appimageRelease.Name}]({appimageRelease.BrowserDownloadUrl})")
-            .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})");
+            .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})")
+            .WithFooter(releaseTime);
 
             return LatestBuild.Build();
         }

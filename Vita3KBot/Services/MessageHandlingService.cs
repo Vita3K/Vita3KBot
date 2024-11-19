@@ -41,7 +41,7 @@ namespace Vita3KBot.Services {
             if (msg.Channel.Name != "github" && msg.Author.ToString() != "GitHub#0000") return;
             var embed = msg.Embeds.FirstOrDefault();
 
-            if (embed != null && embed.Title == "[Vita3K/Vita3K] New release published: continuous") {
+            if (embed != null && embed.Title.StartsWith("[Vita3K/Vita3K-builds] New release published:")) {
                 var guild = (msg.Channel as SocketGuildChannel).Guild;
                 await guild.GetTextChannel(965725409574539274).SendMessageAsync(embed: await GithubClient.GetLatestBuild());
             }

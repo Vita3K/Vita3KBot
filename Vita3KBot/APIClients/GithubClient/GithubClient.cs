@@ -11,27 +11,27 @@ namespace APIClients {
         public static async Task<Embed> GetLatestBuild() {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
-            Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
+            Release latestRelease = await github.Repository.Release.Get("Vita3K", "Vita3K-builds", "latest");
             string releaseTime = $"Published at {latestRelease.PublishedAt:u}";
             ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("windows-latest");
+                return release.Name.EndsWith("windows.7z");
             }).First();
             ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("ubuntu-latest");
+                return release.Name.EndsWith("ubuntu.7z");
             }).First();
             ReleaseAsset appimageRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("Vita3K-x86_64.AppImage");
+                return release.Name.EndsWith("Vita3K-x86_64.AppImage");
             }).First();
             ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("macos-latest");
+                return release.Name.EndsWith("macos.dmg");
             }).First();
 
-            string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf(":") + 1).Trim();
-            commit = commit.Substring(0, commit.IndexOf("\n"));
-            GitHubCommit REF = await github.Repository.Commit.Get("Vita3k", "Vita3k", commit);
-            Issue prInfo = await GetPRInfo(github, commit);
+            string commitSha = latestRelease.Body.Substring(latestRelease.Body.IndexOf("https://github.com/Vita3K/Vita3K/commit/") + 46).Trim();
+            commitSha = commitSha.Substring(0, commitSha.IndexOf(")"));
+            GitHubCommit REF = await github.Repository.Commit.Get("Vita3k", "Vita3k", commitSha);
+            Issue prInfo = await GetPRInfo(github, commitSha);
 
-            EmbedBuilder LatestBuild = new EmbedBuilder();
+            EmbedBuilder LatestBuild = new();
             if (prInfo != null) {
                 LatestBuild.WithTitle($"PR: #{prInfo.Number} By {prInfo.User.Login}")
                 .WithUrl(prInfo.HtmlUrl);

@@ -17,7 +17,7 @@ namespace APIClients {
                 return release.Name.StartsWith("windows-latest");
             }).First();
             ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("ubuntu-latest");
+                return release.Name.StartsWith("ubuntu-22.04");
             }).First();
             ReleaseAsset appimageRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("Vita3K-x86_64.AppImage");

@@ -18,8 +18,9 @@ namespace APIClients {
 
         public static async Task<Embed> GetLatestBuild() {
 
-            GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
+            GitHubClient github = new(new ProductHeaderValue("Vita3KBot"));
             Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
+            long unixTime = latestRelease.PublishedAt.Value.ToUnixTimeSeconds();
 
             // Get commit and PR info
             string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf("commit:") + 7).Trim();
@@ -31,9 +32,8 @@ namespace APIClients {
            // Get build assets
             string buildNum = latestRelease.Body.Substring(latestRelease.Body.IndexOf("Build:") + 6).Trim();
             BuildAssets assets = await GetReleaseAssets(github, buildNum, latestRelease);
-            string releaseTime = $"Published at {latestRelease.PublishedAt:u}";
 
-            EmbedBuilder LatestBuild = new EmbedBuilder();
+            EmbedBuilder LatestBuild = new();
             if (prInfo != null) {
                 LatestBuild.WithTitle($"PR: #{prInfo.Number} By {prInfo.User.Login}")
                 .WithUrl(prInfo.HtmlUrl);
@@ -50,7 +50,7 @@ namespace APIClients {
             .AddField("Windows (ARM64)", "-", true)
             .AddField("Linux (ARM64)", $"[{assets.arm64_AppImage.Name}]({assets.arm64_AppImage.BrowserDownloadUrl})", true)
             .AddField("Android", $"[{assets.Android.Name}]({assets.Android.BrowserDownloadUrl})", true)
-            .WithFooter(releaseTime);
+            .AddField("\u200B", $"Built on: <t:{unixTime}:F> (<t:{unixTime}:R>)");
 
             return LatestBuild.Build();
         }

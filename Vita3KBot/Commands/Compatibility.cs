@@ -9,6 +9,7 @@ using Discord.Commands;
 using APIClients;
 using Octokit;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Vita3KBot.Commands {
     [Group("compat")]
@@ -100,8 +101,9 @@ namespace Vita3KBot.Commands {
         [Summary("Provides a compatibility report of the game.")]
         public async Task Compatability([Remainder, Summary("Game name to search")]string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
+            var sanitized = Regex.Replace(keyword, @"[^a-zA-Z0-9\s]", " ");
 
-            var search = new SearchIssuesRequest(keyword) {
+            var search = new SearchIssuesRequest(sanitized) {
                 Repos = new RepositoryCollection {
                     "Vita3K/homebrew-compatibility",
                     "Vita3K/compatibility"
@@ -109,7 +111,7 @@ namespace Vita3KBot.Commands {
                 State = ItemState.Open,
             };
             
-            var keywords = keyword.ToLower().Split(' ');
+            var keywords = sanitized.ToLower().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             var searchResults = (await github.Search.SearchIssues(search)).Items;
             // The following makes sure all the keywords are contained in each title, and removes the ones that don't.
             var filteredResults = searchResults.Where(

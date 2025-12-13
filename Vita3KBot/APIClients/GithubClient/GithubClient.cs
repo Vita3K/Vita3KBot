@@ -7,32 +7,31 @@ using Octokit;
 
 namespace APIClients {
     public static class GithubClient {
-        
+    public class BuildAssets
+    {
+      public ReleaseAsset Windows { get; init; } = null!;
+      public ReleaseAsset x86_64_AppImage { get; init; } = null!;
+      public ReleaseAsset arm64_AppImage { get; init; } = null!;
+      public ReleaseAsset MacOS { get; init; } = null!;
+      public ReleaseAsset Android { get; init; } = null!;
+    }
+
         public static async Task<Embed> GetLatestBuild() {
 
             GitHubClient github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
             Release latestRelease = await github.Repository.Release.Get("Vita3k", "Vita3k", "continuous");
-            string releaseTime = $"Published at {latestRelease.PublishedAt:u}";
-            ReleaseAsset windowsRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("windows-latest");
-            }).First();
-            ReleaseAsset linuxRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("ubuntu-latest");
-            }).First();
-            ReleaseAsset appimageRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("Vita3K-x86_64.AppImage");
-            }).First();
-            ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("macos-latest");
-            }).First();
-            ReleaseAsset androidRelease = latestRelease.Assets.Where(release => {
-                return release.Name.StartsWith("android-latest");
-            }).First();
 
-            string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf(":") + 1).Trim();
+            // Get commit and PR info
+            string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf("commit:") + 7).Trim();
             commit = commit.Substring(0, commit.IndexOf("\n"));
             GitHubCommit REF = await github.Repository.Commit.Get("Vita3k", "Vita3k", commit);
             Issue prInfo = await GetPRInfo(github, commit);
+            string bodyText = !string.IsNullOrWhiteSpace(prInfo.Body) ? prInfo.Body : REF.Commit.Message;
+
+           // Get build assets
+            string buildNum = latestRelease.Body.Substring(latestRelease.Body.IndexOf("Build:") + 6).Trim();
+            BuildAssets assets = await GetReleaseAssets(github, buildNum, latestRelease);
+            string releaseTime = $"Published at {latestRelease.PublishedAt:u}";
 
             EmbedBuilder LatestBuild = new EmbedBuilder();
             if (prInfo != null) {
@@ -42,12 +41,15 @@ namespace APIClients {
                 LatestBuild.WithTitle($"Commit: {REF.Sha} By {REF.Commit.Author.Name}")
                 .WithUrl($"https://github.com/vita3k/vita3k/commit/{REF.Sha}");
             }
-            LatestBuild.WithDescription($"{REF.Commit.Message}")
+
+            LatestBuild.WithDescription($"**{prInfo.Title}**\n\n{bodyText}")
             .WithColor(Color.Orange)
-            .AddField("Windows", $"[{windowsRelease.Name}]({windowsRelease.BrowserDownloadUrl})")
-            .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl}), [{appimageRelease.Name}]({appimageRelease.BrowserDownloadUrl})")
-            .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})")
-            .AddField("Android", $"[{androidRelease.Name}]({androidRelease.BrowserDownloadUrl})")
+            .AddField("Windows", $"[{assets.Windows.Name}]({assets.Windows.BrowserDownloadUrl})",true)
+            .AddField("Linux", $"[{assets.x86_64_AppImage.Name}]({assets.x86_64_AppImage.BrowserDownloadUrl})", true)
+            .AddField("Mac", $"[{assets.MacOS.Name}]({assets.MacOS.BrowserDownloadUrl})", true)
+            .AddField("Windows (ARM64)", "-", true)
+            .AddField("Linux (ARM64)", $"[{assets.arm64_AppImage.Name}]({assets.arm64_AppImage.BrowserDownloadUrl})", true)
+            .AddField("Android", $"[{assets.Android.Name}]({assets.Android.BrowserDownloadUrl})", true)
             .WithFooter(releaseTime);
 
             return LatestBuild.Build();
@@ -64,6 +66,30 @@ namespace APIClients {
             var searchResults = (await github.Search.SearchIssues(request)).Items;
 
             return searchResults.FirstOrDefault();
+        }
+
+        private static async Task<BuildAssets> GetReleaseAssets(GitHubClient github,string buildNum, Release latestRelease) {
+            try {
+                var storeRelease = await github.Repository.Release.Get("Vita3k","Vita3k-builds",buildNum);
+                return new BuildAssets
+                {
+                    Windows = storeRelease.Assets.First(a => a.Name.EndsWith("windows.7z")),
+                    x86_64_AppImage = storeRelease.Assets.First(a => a.Name.EndsWith("x86_64.AppImage")),
+                    arm64_AppImage = storeRelease.Assets.First(a => a.Name.EndsWith("aarch64.AppImage")),
+                    MacOS = storeRelease.Assets.First(a => a.Name.EndsWith("macos.dmg")),
+                    Android = storeRelease.Assets.First(a => a.Name.EndsWith("android.apk"))
+                };
+            }
+            catch (Octokit.NotFoundException) {
+                return new BuildAssets
+                {
+                    Windows = latestRelease.Assets.First(a => a.Name.StartsWith("windows-latest")),
+                    x86_64_AppImage = latestRelease.Assets.First(a => a.Name.EndsWith("x86_64.AppImage")),
+                    arm64_AppImage = latestRelease.Assets.First(a => a.Name.EndsWith("aarch64.AppImage")),
+                    MacOS = latestRelease.Assets.First(a => a.Name.StartsWith("macos-latest")),
+                    Android = latestRelease.Assets.First(a => a.Name.StartsWith("android-latest"))
+                };
+            }
         }
     }
 }

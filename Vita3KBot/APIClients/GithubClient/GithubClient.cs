@@ -25,6 +25,9 @@ namespace APIClients {
             ReleaseAsset macosRelease = latestRelease.Assets.Where(release => {
                 return release.Name.StartsWith("macos-latest");
             }).First();
+            ReleaseAsset androidRelease = latestRelease.Assets.Where(release => {
+                return release.Name.StartsWith("android-latest");
+            }).First();
 
             string commit = latestRelease.Body.Substring(latestRelease.Body.IndexOf(":") + 1).Trim();
             commit = commit.Substring(0, commit.IndexOf("\n"));
@@ -44,6 +47,7 @@ namespace APIClients {
             .AddField("Windows", $"[{windowsRelease.Name}]({windowsRelease.BrowserDownloadUrl})")
             .AddField("Linux", $"[{linuxRelease.Name}]({linuxRelease.BrowserDownloadUrl}), [{appimageRelease.Name}]({appimageRelease.BrowserDownloadUrl})")
             .AddField("Mac", $"[{macosRelease.Name}]({macosRelease.BrowserDownloadUrl})")
+            .AddField("Android", $"[{androidRelease.Name}]({androidRelease.BrowserDownloadUrl})")
             .WithFooter(releaseTime);
 
             return LatestBuild.Build();

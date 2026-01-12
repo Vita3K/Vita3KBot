@@ -9,11 +9,12 @@ namespace APIClients {
     public static class GithubClient {
     public class BuildAssets
     {
-      public ReleaseAsset Windows { get; init; } = null!;
-      public ReleaseAsset x86_64_AppImage { get; init; } = null!;
-      public ReleaseAsset arm64_AppImage { get; init; } = null!;
-      public ReleaseAsset MacOS { get; init; } = null!;
-      public ReleaseAsset Android { get; init; } = null!;
+        public ReleaseAsset Windows_x86_64 { get; init; } = null!;
+        public ReleaseAsset Windows_arm64 { get; init; } = null!;
+        public ReleaseAsset x86_64_AppImage { get; init; } = null!;
+        public ReleaseAsset arm64_AppImage { get; init; } = null!;
+        public ReleaseAsset MacOS { get; init; } = null!;
+        public ReleaseAsset Android { get; init; } = null!;
     }
 
         public static async Task<Embed> GetLatestBuild() {
@@ -44,10 +45,10 @@ namespace APIClients {
 
             LatestBuild.WithDescription($"**{prInfo.Title}**\n\n{bodyText}")
             .WithColor(Color.Orange)
-            .AddField("Windows", $"[{assets.Windows.Name}]({assets.Windows.BrowserDownloadUrl})",true)
+            .AddField("Windows", $"[{assets.Windows_x86_64.Name}]({assets.Windows_x86_64.BrowserDownloadUrl})", true)
             .AddField("Linux", $"[{assets.x86_64_AppImage.Name}]({assets.x86_64_AppImage.BrowserDownloadUrl})", true)
-            .AddField("Mac", $"[{assets.MacOS.Name}]({assets.MacOS.BrowserDownloadUrl})", true)
-            .AddField("Windows (ARM64)", "-", true)
+            .AddField("macOS", $"[{assets.MacOS.Name}]({assets.MacOS.BrowserDownloadUrl})", true)
+            .AddField("Windows (ARM64)", $"[{assets.Windows_arm64.Name}]({assets.Windows_arm64.BrowserDownloadUrl})", true)
             .AddField("Linux (ARM64)", $"[{assets.arm64_AppImage.Name}]({assets.arm64_AppImage.BrowserDownloadUrl})", true)
             .AddField("Android", $"[{assets.Android.Name}]({assets.Android.BrowserDownloadUrl})", true)
             .AddField("\u200B", $"Built on: <t:{unixTime}:F> (<t:{unixTime}:R>)");
@@ -73,17 +74,19 @@ namespace APIClients {
                 var storeRelease = await github.Repository.Release.Get("Vita3k","Vita3k-builds",buildNum);
                 return new BuildAssets
                 {
-                    Windows = storeRelease.Assets.First(a => a.Name.EndsWith("windows.7z")),
+                    Windows_x86_64 = storeRelease.Assets.First(a => a.Name.EndsWith("windows-x86_64.7z")),
+                    Windows_arm64 = storeRelease.Assets.First(a => a.Name.EndsWith("windows-arm64.7z")),
                     x86_64_AppImage = storeRelease.Assets.First(a => a.Name.EndsWith("x86_64.AppImage")),
                     arm64_AppImage = storeRelease.Assets.First(a => a.Name.EndsWith("aarch64.AppImage")),
-                    MacOS = storeRelease.Assets.First(a => a.Name.EndsWith("macos.dmg")),
+                    MacOS = storeRelease.Assets.First(a => a.Name.EndsWith("macos-intel.dmg")),
                     Android = storeRelease.Assets.First(a => a.Name.EndsWith("android.apk"))
                 };
             }
             catch (Octokit.NotFoundException) {
                 return new BuildAssets
                 {
-                    Windows = latestRelease.Assets.First(a => a.Name.StartsWith("windows-latest")),
+                    Windows_x86_64 = latestRelease.Assets.First(a => a.Name.StartsWith("windows-latest")),
+                    Windows_arm64 = latestRelease.Assets.First(a => a.Name.StartsWith("windows-arm64-latest")),
                     x86_64_AppImage = latestRelease.Assets.First(a => a.Name.EndsWith("x86_64.AppImage")),
                     arm64_AppImage = latestRelease.Assets.First(a => a.Name.EndsWith("aarch64.AppImage")),
                     MacOS = latestRelease.Assets.First(a => a.Name.StartsWith("macos-latest")),

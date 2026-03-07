@@ -2,76 +2,66 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-
 using Discord;
 using Discord.Commands;
-using Vita3KBot.Commands.Attributes;
+using Discord.Interactions;
+using DC = Discord.Commands;
 
 namespace Vita3KBot.Commands {
-    [Group("explain")]
-    public class ExplainModule : ModuleBase<SocketCommandContext> {
-        private static readonly DirectoryInfo ExplanationDirectory = new DirectoryInfo("explanations");
 
-        [Group("list")]
-        public class List : ModuleBase<SocketCommandContext> {
-            [Command, Name("list"), Priority(1)] // higher number takes priority
-            [Summary("Lists all topics/terms that can be explained")]
-            public async Task ExplainList() {
-                List<string> explanations = new List<string>();
-                foreach (var explanation in ExplanationDirectory.GetFiles()) {
-                    explanations.Add($"`{explanation.Name.Split(".")[0]}`");
-                }
-                var ExplainListEmbed = new EmbedBuilder()
+    // ── Shared logic ─────────────────────────────────────────────
+
+    internal static class ExplainUtils {
+        internal static readonly DirectoryInfo ExplanationDirectory = new DirectoryInfo("explanations");
+
+        internal static Embed BuildListEmbed() {
+            var explanations = ExplanationDirectory.GetFiles()
+                .Select(f => $"`{f.Name.Split(".")[0]}`");
+            return new EmbedBuilder()
                 .WithTitle("All explanations")
                 .WithColor(Color.Orange)
                 .WithDescription(string.Join(", ", explanations))
                 .Build();
-                await ReplyAsync(embed: ExplainListEmbed);
-            }
         }
 
-        [Group("edit"), RequireWhitelistedRole]
-        public class Add : ModuleBase<SocketCommandContext> {
-            [Command, Name("edit"), Priority(1)]
-            [Summary("Adds/edits a topic's/term's explanation.")]
-            public async Task AddExplain([Summary("Topic name")]string topic, [Remainder, Summary("Topic explanation")]string contents) {
-                var path = Path.Combine(ExplanationDirectory.FullName, topic + ".txt");
-                if (!File.Exists(path)) {
-                    File.WriteAllText(path, contents);
-                    await ReplyAsync($"Created new explanation for `{topic}`. Run it with `-explain {topic}`.");
-                }
-                else {
-                    File.WriteAllText(path, contents);
-                    await ReplyAsync($"Edited explanation for {topic}.");
-                }
-            }
-        }
-
-        [Group("delete"), RequireWhitelistedRole]
-        public class Delete : ModuleBase<SocketCommandContext> {
-            [Command, Name("delete"), Priority(1)]
-            [Summary("Deletes the chosen topic/term")]
-            public async Task DeleteExplanation([Remainder, Summary("Topic to delete")]string topic) {
-                var file = ExplanationDirectory.GetFiles().FirstOrDefault(f => f.Name == topic + ".txt");
-                if (file == null) {
-                    await ReplyAsync($"`{topic}` doesn't exist, check your spelling.");
-                    return;
-                }
-                file.Delete();
-                await ReplyAsync($"Successfully deleted `{topic}`.");
-            }
-        }
-
-        [Command, Name("explain"), Priority(0)]
-        [Summary("Explains a topic or a term")]
-        public async Task Explain([Remainder, Summary("Topic to explain")]string topic) {
+        internal static string GetExplanation(string topic) {
             var file = ExplanationDirectory.GetFiles().FirstOrDefault(x => x.Name == topic + ".txt");
-            if (file == null) {
-                await ReplyAsync($"No explanation listed for `{topic}`.");
-            return;
+            return file == null ? null : File.ReadAllText(file.FullName);
         }
-        var explanation = File.ReadAllText(file.FullName);
-        await ReplyAsync(explanation);
+    }
+
+    // ── Prefix commands ──────────────────────────────────────────
+
+    [DC.Group("explain")]
+    public class ExplainPrefix : DC.ModuleBase<DC.SocketCommandContext> {
+        [DC.Group("list")]
+        public class List : DC.ModuleBase<DC.SocketCommandContext> {
+            [DC.Command, DC.Name("list"), DC.Priority(1)]
+            [DC.Summary("Lists all topics/terms that can be explained")]
+            public async Task ExplainList()
+                => await ReplyAsync(embed: ExplainUtils.BuildListEmbed());
         }
+
+        [DC.Command, DC.Name("explain"), DC.Priority(0)]
+        [DC.Summary("Explains a topic or a term")]
+        public async Task Explain([DC.Remainder, DC.Summary("Topic to explain")] string topic) {
+            var explanation = ExplainUtils.GetExplanation(topic);
+            await ReplyAsync(explanation ?? $"No explanation listed for `{topic}`.");
+        }
+    }
+
+    // ── Slash commands ───────────────────────────────────────────
+
+    public class ExplainSlash : InteractionModuleBase<SocketInteractionContext> {
+        [SlashCommand("explain", "Explains a topic or a term")]
+        public async Task Explain(
+                [Discord.Interactions.Summary("topic", "Topic to explain")] string topic) {
+            var explanation = ExplainUtils.GetExplanation(topic);
+            await RespondAsync(explanation ?? $"No explanation listed for `{topic}`.", ephemeral: explanation == null);
+        }
+
+        [SlashCommand("explain-list", "Lists all topics/terms that can be explained")]
+        public async Task ExplainList()
+            => await RespondAsync(embed: ExplainUtils.BuildListEmbed());
     }
 }

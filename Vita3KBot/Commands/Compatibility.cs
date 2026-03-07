@@ -2,59 +2,39 @@ using System;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Text;
-
+using System.Text.RegularExpressions;
+using System.Globalization;
 using Discord;
 using Discord.Commands;
-
+using Discord.Interactions;
 using APIClients;
 using Octokit;
-using System.Globalization;
-using System.Text.RegularExpressions;
+using DC = Discord.Commands;
 
 namespace Vita3KBot.Commands {
-    [Group("compat")]
-    public class Compatibility: ModuleBase<SocketCommandContext> {
-        // Config
-        private const int MaxItemsToDisplay = 8;
-        private const int MaxDescriptionLength = 4096;
 
-        private const string HomebrewRepo = "homebrew-compatibility";
-        private const string CommercialRepo = "compatibility";
+    // ── Shared logic ─────────────────────────────────────────────
 
-        private class TitleInfo {
-            private static readonly string[] StatusNames = {
-                // Priority, display when possible.
-                "Playable",
-                "Ingame",
-                "Ingame +",
-                "Ingame -",
-                "Menu",
-                "Intro",
-                "Bootable",
-                "Crash",
-                "Nothing",
+    internal static class CompatUtils {
+        internal const int MaxItemsToDisplay = 8;
+        internal const int MaxDescriptionLength = 4096;
+        internal const string HomebrewRepo = "homebrew-compatibility";
+        internal const string CommercialRepo = "compatibility";
 
-                // Secondary, display if nothing else.
-                "Slow",
-                "Black Screen",
-                "NID Missing",
-                "Module Loading Bug",
-                "IO Bug",
-                "Softlock Bug",
-                "Graphics Bug",
-                "Shader Bug",
-                "Audio Bug",
-                "Input Bug",
-                "Touch Bug",
-                "Savedata Bug",
-                "Trophy Bug",
-                "Networking Bug",
+        internal static readonly string[] StatusNames = {
+            // Priority, display when possible.
+            "Playable", "Ingame", "Ingame +", "Ingame -",
+            "Menu", "Intro", "Bootable", "Crash", "Nothing",
+            // Secondary, display if nothing else.
+            "Slow", "Black Screen", "NID Missing", "Module Loading Bug",
+            "IO Bug", "Softlock Bug", "Graphics Bug", "Shader Bug",
+            "Audio Bug", "Input Bug", "Touch Bug", "Savedata Bug",
+            "Trophy Bug", "Networking Bug",
+            // Invalid
+            "Invalid", "Unknown",
+        };
 
-                // Invalid
-                "Invalid",
-                "Unknown",
-            };
-
+        internal class TitleInfo {
             private readonly Issue _issue;
             public readonly bool IsHomebrew;
             public readonly string Status;
@@ -64,9 +44,8 @@ namespace Vita3KBot.Commands {
 
             public async Task FetchCommentInfo(GitHubClient client) {
                 if (_issue.Comments == 0) return;
-
-                var comments = await client.Issue.Comment.GetAllForIssue("Vita3K",
-                    IsHomebrew ? HomebrewRepo : CommercialRepo, _issue.Number);
+                var comments = await client.Issue.Comment.GetAllForIssue(
+                    "Vita3K", IsHomebrew ? HomebrewRepo : CommercialRepo, _issue.Number);
                 var lastComment = comments[_issue.Comments - 1];
                 LatestComment = "**" + lastComment.User.Login + "**: " + lastComment.Body;
                 LatestProfileImage = lastComment.User.AvatarUrl;
@@ -97,9 +76,7 @@ namespace Vita3KBot.Commands {
             }
         }
 
-        [Command, Name("compat")]
-        [Summary("Provides a compatibility report of the game.")]
-        public async Task Compatability([Remainder, Summary("Game name to search")]string keyword) {
+        internal static async Task<(string message, Embed embed)?> SearchCompat(string keyword) {
             var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
             var sanitized = Regex.Replace(keyword, @"[^a-zA-Z0-9\s]", " ");
 
@@ -110,41 +87,41 @@ namespace Vita3KBot.Commands {
                 },
                 State = ItemState.Open,
             };
-            
+
             var keywords = sanitized.ToLower().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             var searchResults = (await github.Search.SearchIssues(search)).Items;
             // The following makes sure all the keywords are contained in each title, and removes the ones that don't.
-            var filteredResults = searchResults.Where(
-                x => keywords.Any(y => x.Title.ToLower().Contains(y))).ToList();
+            var filteredResults = searchResults
+                .Where(x => keywords.Any(y => x.Title.ToLower().Contains(y))).ToList();
+
             switch (filteredResults.Count) {
                 case 0:
-                    await ReplyAsync("No games found for search term " + keyword + ".");
-                    break;
+                    return ($"No games found for search term {keyword}.", null);
 
                 case 1: {
                     var issue = filteredResults.First();
                     var info = new TitleInfo(issue);
                     await info.FetchCommentInfo(github);
                     var description = "Status: **" + info.Status + "**\n\n" + info.LatestComment;
-                    if (description.Length > 4096) {
-                        description = description.Substring(0, MaxDescriptionLength - 3) + "...";
-                    }
+                    if (description.Length > MaxDescriptionLength)
+                        description = description[..(MaxDescriptionLength - 3)] + "...";
+
                     var builder = new EmbedBuilder()
-                        .WithTitle("*" + issue.Title + "* (" + (info.IsHomebrew ? "Homebrew" : "Commercial") + ")")
+                        .WithTitle($"*{issue.Title}* ({(info.IsHomebrew ? "Homebrew" : "Commercial")})")
                         .WithDescription(description)
                         .WithColor(info.LabelColor)
                         .WithUrl(issue.HtmlUrl)
                         .WithCurrentTimestamp();
-                    if (info.LatestProfileImage.Length > 0) builder.WithThumbnailUrl(info.LatestProfileImage);
+                    if (info.LatestProfileImage.Length > 0)
+                        builder.WithThumbnailUrl(info.LatestProfileImage);
 
-                    await ReplyAsync("", false, builder.Build());
-                    break;
+                    return (null, builder.Build());
                 }
 
                 default: {
                     var description = new StringBuilder();
-                    for (var a = 0; a < Math.Min(filteredResults.Count, MaxItemsToDisplay); a++) {
-                        var issue = filteredResults[a];
+                    for (var i = 0; i < Math.Min(filteredResults.Count, MaxItemsToDisplay); i++) {
+                        var issue = filteredResults[i];
                         var info = new TitleInfo(issue);
                         var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
                         description.Append($"*[{issue.Title}]({issue.HtmlUrl})* ({homebrewText}): **{info.Status}**\n");
@@ -152,26 +129,58 @@ namespace Vita3KBot.Commands {
                     if (filteredResults.Count > MaxItemsToDisplay) description.Append("...");
 
                     var builder = new EmbedBuilder()
-                        .WithTitle("Found " + filteredResults.Count + " issues for search term " + keyword + ".")
+                        .WithTitle($"Found {filteredResults.Count} issues for search term {keyword}.")
                         .WithDescription(description.ToString())
                         .WithColor(Color.Orange)
                         .WithCurrentTimestamp();
 
-                    await ReplyAsync("", false, builder.Build());
-                    break;
+                    return (null, builder.Build());
                 }
             }
         }
-
     }
-    [Group("update")]
-    public class Update : ModuleBase<SocketCommandContext> {
-        [Command, Name("update")]
-        [Summary("Provides PSN update information for the game.")]
-        private async Task GetUpdate([Remainder, Summary("Title ID of the game")] string titleId)
-        {
-            //TODO: filter titleID to match valid IDs (e.g. PCSE00000 or PCSB00000) using a regex
-            await ReplyAsync(embed: PSNClient.GetTitlePatch(titleId.ToUpper()));
+
+    // ── Prefix commands ──────────────────────────────────────────
+
+    [DC.Group("compat")]
+    public class CompatibilityPrefix : DC.ModuleBase<DC.SocketCommandContext> {
+        [DC.Command, DC.Name("compat")]
+        [DC.Summary("Provides a compatibility report of the game.")]
+        public async Task Compatibility([DC.Remainder, DC.Summary("Game name to search")] string keyword) {
+            var result = await CompatUtils.SearchCompat(keyword);
+            if (result == null) return;
+            var (message, embed) = result.Value;
+            await ReplyAsync(message ?? "", false, embed);
         }
+    }
+
+    [DC.Group("update")]
+    public class UpdatePrefix : DC.ModuleBase<DC.SocketCommandContext> {
+        [DC.Command, DC.Name("update")]
+        [DC.Summary("Provides PSN update information for the game.")]
+        public async Task GetUpdate([DC.Remainder, DC.Summary("Title ID of the game")] string titleId)
+            => await ReplyAsync(embed: PSNClient.GetTitlePatch(titleId.ToUpper()));
+    }
+
+    // ── Slash commands ───────────────────────────────────────────
+
+    public class CompatibilitySlash : InteractionModuleBase<SocketInteractionContext> {
+        [SlashCommand("compat", "Provides a compatibility report of the game.")]
+        public async Task Compatibility(
+                [Discord.Interactions.Summary("keyword", "Game name to search")] string keyword) {
+            // Defer since GitHub search may take a moment
+            await DeferAsync();
+            var result = await CompatUtils.SearchCompat(keyword);
+            if (result == null) return;
+            var (message, embed) = result.Value;
+            await FollowupAsync(message ?? "", embed: embed);
+        }
+    }
+
+    public class UpdateSlash : InteractionModuleBase<SocketInteractionContext> {
+        [SlashCommand("update", "Provides PSN update information for the game.")]
+        public async Task GetUpdate(
+                [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000)")] string titleId)
+            => await RespondAsync(embed: PSNClient.GetTitlePatch(titleId.ToUpper()));
     }
 }

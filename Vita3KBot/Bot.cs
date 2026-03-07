@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using Vita3KBot.Services;
@@ -63,7 +64,8 @@ namespace Vita3KBot {
                 GatewayIntents = GatewayIntents.Guilds
                     | GatewayIntents.DirectMessages
                     | GatewayIntents.GuildMessages
-                    | GatewayIntents.GuildMembers,
+                    | GatewayIntents.GuildMembers
+                    | GatewayIntents.MessageContent,
             };
 
             var client = new DiscordSocketClient(config);
@@ -71,6 +73,7 @@ namespace Vita3KBot {
             return new ServiceCollection()
                 .AddSingleton(client)
                 .AddSingleton<CommandService>()
+                .AddSingleton(new InteractionService(client))
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<MessageHandlingService>()
                 .BuildServiceProvider();

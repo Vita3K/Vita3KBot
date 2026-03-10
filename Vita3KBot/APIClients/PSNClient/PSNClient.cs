@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -26,27 +26,57 @@ namespace APIClients {
         private static readonly XmlSerializer FWSerializer = new XmlSerializer(typeof(UpdateDataList));
         private static readonly XmlSerializer PatchesSerializer = new XmlSerializer(typeof(TitlePatch));
 
-        public static Embed GetTitlePatch(string titleId) {
+        public static (Embed, MessageComponent?) GetTitlePatch(string titleId) {
             string url = ConvertTitleIDToHash(titleId);
+            var covers = JsonConvert.DeserializeObject<Root>(File.ReadAllText("./APIClients/PSNClient/Covers.json"));
 
-            var noUpdatesEmbed = new EmbedBuilder
-            {
-                Title = titleId,
-                Description = $"No updates were found for {titleId}",
-                Color = Color.Orange
-            };
+            (Embed, MessageComponent?) NoUpdatesEmbed() {
+                // If it doesn't start with PCS, search for candidates by name.
+                if (!titleId.StartsWith("PCS", StringComparison.OrdinalIgnoreCase)) {
+                    var matched = covers?.IDs?
+                        .Where(x => x.name != null && x.name.ToLower().Contains(titleId.ToLower()))
+                        .ToList();
+
+                    if (matched != null && matched.Count == 1)
+                        return GetTitlePatch(matched[0].ID);
+
+                    if (matched != null && matched.Count > 1) {
+                        var embed = new EmbedBuilder {
+                            Title       = "Which Title ID？",
+                            Description = string.Join("\n", matched.Select(x => $"`{x.ID}` - {x.name}")),
+                            Color       = Color.Orange
+                        }.Build();
+                        var components = new ComponentBuilder();
+                        foreach (var m in matched) {
+                            string flag = m.ID.StartsWith("PCSA", StringComparison.OrdinalIgnoreCase) ? "🇺🇸 " :
+                                          m.ID.StartsWith("PCSB", StringComparison.OrdinalIgnoreCase) ? "🇪🇺 " :
+                                          m.ID.StartsWith("PCSC", StringComparison.OrdinalIgnoreCase) ? "🇯🇵 " :
+                                          m.ID.StartsWith("PCSD", StringComparison.OrdinalIgnoreCase) ? "🇨🇳 " :
+                                          m.ID.StartsWith("PCSE", StringComparison.OrdinalIgnoreCase) ? "🇺🇸 " :
+                                          m.ID.StartsWith("PCSF", StringComparison.OrdinalIgnoreCase) ? "🇪🇺 " :
+                                          m.ID.StartsWith("PCSG", StringComparison.OrdinalIgnoreCase) ? "🇯🇵 " :
+                                          m.ID.StartsWith("PCSH", StringComparison.OrdinalIgnoreCase) ? "🇨🇳 " :
+                                          m.ID.StartsWith("PCSI", StringComparison.OrdinalIgnoreCase) ? "🌍 " : "";
+                            components.WithButton($"{flag}{m.ID}", $"update:{m.ID}", ButtonStyle.Primary);
+                        }
+                        return (embed, components.Build());
+                    }
+                }
+
+                return (new EmbedBuilder {
+                    Title       = titleId,
+                    Description = $"No updates were found for {titleId}",
+                    Color       = Color.Orange
+                }.Build(), null);
+            }
 
             XmlDocument xmlDoc = new XmlDocument();
-            // Almost all games with no updates don't return an empty XML so i'm forced to do this hack
-            // We also can't differentiate between valid IDs and games with no updates
             try { xmlDoc.Load(url); }
             catch (HttpRequestException e) {
-                if (e.StatusCode == HttpStatusCode.NotFound) {
-                    return noUpdatesEmbed.Build();
-                }
+                if (e.StatusCode == HttpStatusCode.NotFound) return NoUpdatesEmbed();
             }
-            catch (WebException) { return noUpdatesEmbed.Build(); }
-            catch (XmlException) { return noUpdatesEmbed.Build(); }
+            catch (WebException) { return NoUpdatesEmbed(); }
+            catch (XmlException) { return NoUpdatesEmbed(); }
 
             using (XmlReader reader = XmlReader.Create(url))
             {
@@ -94,7 +124,7 @@ namespace APIClients {
                     patchEmbed.AddField("Min Firmware", $"{FormatSysVer(pkgs[0].SysVer)}");
                 }
 
-                return patchEmbed.Build();
+                return (patchEmbed.Build(), null);
             }
         }
 

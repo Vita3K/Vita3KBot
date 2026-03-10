@@ -58,6 +58,7 @@ namespace PSN.POCOs
     public class IDs
     {
         public string ID { get; set; }
+        public string name  { get; set; }
         public string cover { get; set; }
     }
 

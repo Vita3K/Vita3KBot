@@ -56,8 +56,27 @@ namespace Vita3KBot.Services {
 
         // Initializes the Message Handler, subscribe to events, etc.
         public void Initialize() {
-            _client.MessageReceived += CheckMessage;
-            _client.UserJoined += HandleUserJoinedAsync;
+            _client.MessageReceived += (msg) => {
+                _ = Task.Run(async () => {
+                    try {
+                        await CheckMessage(msg);
+                    } catch (Exception ex) {
+                        Console.WriteLine($"CheckMessage error: {ex}");
+                    }
+                });
+                return Task.CompletedTask;
+            };
+
+            _client.UserJoined += (user) => {
+                _ = Task.Run(async () => {
+                    try {
+                        await HandleUserJoinedAsync(user);
+                    } catch (Exception ex) {
+                        Console.WriteLine($"HandleUserJoinedAsync error: {ex}");
+                    }
+                });
+                return Task.CompletedTask;
+            };
         }
 
         public MessageHandlingService(IServiceProvider services) {

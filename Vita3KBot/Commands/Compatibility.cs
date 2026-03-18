@@ -34,6 +34,12 @@ namespace Vita3KBot.Commands {
             "Invalid", "Unknown",
         };
 
+        // PCS + 1 letter + 5 digits (e.g., PCSE00000)
+        internal static readonly Regex TitleIdRegex = new(@"^PCS[A-Z]\d{5}$", RegexOptions.Compiled);
+
+        internal static bool IsValidTitleId(string titleId) =>
+            TitleIdRegex.IsMatch(titleId);
+
         internal class TitleInfo {
             private readonly Issue _issue;
             public readonly bool IsHomebrew;
@@ -159,7 +165,12 @@ namespace Vita3KBot.Commands {
         [DC.Command, DC.Name("update")]
         [DC.Summary("Provides PSN update information for the game.")]
         public async Task GetUpdate([DC.Remainder, DC.Summary("Title ID of the game")] string titleId) {
-            var (embed, components) = PSNClient.GetTitlePatch(titleId.ToUpper());
+            var normalized = titleId.ToUpper();
+            if (!CompatUtils.IsValidTitleId(normalized)) {
+                await ReplyAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).");
+                return;
+            }
+            var (embed, components) = PSNClient.GetTitlePatch(normalized);
             await ReplyAsync(embed: embed, components: components);
         }
     }
@@ -183,7 +194,12 @@ namespace Vita3KBot.Commands {
         [SlashCommand("update", "Provides PSN update information for the game.")]
         public async Task GetUpdate(
                 [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000)")] string titleId) {
-            var (embed, components) = PSNClient.GetTitlePatch(titleId.ToUpper());
+            var normalized = titleId.ToUpper();
+            if (!CompatUtils.IsValidTitleId(normalized)) {
+                await RespondAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).", ephemeral: true);
+                return;
+            }
+            var (embed, components) = PSNClient.GetTitlePatch(normalized);
             await RespondAsync(embed: embed, components: components);
         }
     }

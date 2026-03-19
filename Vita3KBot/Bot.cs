@@ -9,6 +9,8 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using Vita3KBot.Services;
+using APIClients;
+using System.Linq;
 
 namespace Vita3KBot {
     public class Bot {
@@ -21,6 +23,37 @@ namespace Vita3KBot {
                 var client = services.GetRequiredService<DiscordSocketClient>();
                 client.Log += LogAsync;
                 services.GetRequiredService<CommandService>().Log += LogAsync;
+                
+                // Is this really the best place for this?
+                client.SelectMenuExecuted += async (interaction) =>
+                {
+                    if (interaction.Data.CustomId == "update_select") {
+                        var selectedId = interaction.Data.Values.First();
+                        var (embed, _) = PSNClient.GetTitlePatch(selectedId);
+
+                        // Preserve the original select menu from the message
+                        var originalComponents = interaction.Message.Components;
+                        var components = new ComponentBuilder();
+                        foreach (var row in originalComponents)
+                            if (row is ActionRowComponent actionRow)
+                                foreach (var component in actionRow.Components)
+                                    if (component is SelectMenuComponent menu)
+                                      components.WithSelectMenu(menu.CustomId,
+                                          menu.Options.Select(o => new SelectMenuOptionBuilder()
+                                              .WithLabel(o.Label)
+                                              .WithValue(o.Value)
+                                              .WithDescription(o.Description)
+                                              .WithEmote(o.Emote)
+                                              .WithDefault(o.Value == selectedId)
+                                          ).ToList(),
+                                          menu.Placeholder);
+                    // Update the message in-place so the menu remains and can be reused
+                    await interaction.UpdateAsync(props => {
+                            props.Embed      = embed;
+                            props.Components = components.Build();
+                        });
+                    }
+                };
 
                 await client.LoginAsync(TokenType.Bot, _token);
                 await client.StartAsync();

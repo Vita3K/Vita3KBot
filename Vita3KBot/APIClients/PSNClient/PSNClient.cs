@@ -46,20 +46,35 @@ namespace APIClients {
                             Description = string.Join("\n", matched.Select(x => $"`{x.ID}` - {x.name}")),
                             Color       = Color.Orange
                         }.Build();
-                        var components = new ComponentBuilder();
-                        foreach (var m in matched) {
-                            string flag = m.ID.StartsWith("PCSA", StringComparison.OrdinalIgnoreCase) ? "🇺🇸 " :
-                                          m.ID.StartsWith("PCSB", StringComparison.OrdinalIgnoreCase) ? "🇪🇺 " :
-                                          m.ID.StartsWith("PCSC", StringComparison.OrdinalIgnoreCase) ? "🇯🇵 " :
-                                          m.ID.StartsWith("PCSD", StringComparison.OrdinalIgnoreCase) ? "🇨🇳 " :
-                                          m.ID.StartsWith("PCSE", StringComparison.OrdinalIgnoreCase) ? "🇺🇸 " :
-                                          m.ID.StartsWith("PCSF", StringComparison.OrdinalIgnoreCase) ? "🇪🇺 " :
-                                          m.ID.StartsWith("PCSG", StringComparison.OrdinalIgnoreCase) ? "🇯🇵 " :
-                                          m.ID.StartsWith("PCSH", StringComparison.OrdinalIgnoreCase) ? "🇨🇳 " :
-                                          m.ID.StartsWith("PCSI", StringComparison.OrdinalIgnoreCase) ? "🌍 " : "";
-                            components.WithButton($"{flag}{m.ID}", $"update:{m.ID}", ButtonStyle.Primary);
-                        }
-                        return (embed, components.Build());
+                        var options = matched.Select(m => {
+                            string flag = m.ID.StartsWith("PCSA", StringComparison.OrdinalIgnoreCase) ? "🇺🇸" :
+                                          m.ID.StartsWith("PCSB", StringComparison.OrdinalIgnoreCase) ? "🇪🇺" :
+                                          m.ID.StartsWith("PCSC", StringComparison.OrdinalIgnoreCase) ? "🇯🇵" :
+                                          m.ID.StartsWith("PCSD", StringComparison.OrdinalIgnoreCase) ? "🇨🇳" :
+                                          m.ID.StartsWith("PCSE", StringComparison.OrdinalIgnoreCase) ? "🇺🇸" :
+                                          m.ID.StartsWith("PCSF", StringComparison.OrdinalIgnoreCase) ? "🇪🇺" :
+                                          m.ID.StartsWith("PCSG", StringComparison.OrdinalIgnoreCase) ? "🇯🇵" :
+                                          m.ID.StartsWith("PCSH", StringComparison.OrdinalIgnoreCase) ? "🇨🇳" :
+                                          m.ID.StartsWith("PCSI", StringComparison.OrdinalIgnoreCase) ? "🌍" : "🎮";
+                            return new SelectMenuOptionBuilder()
+                                        .WithLabel(m.ID)
+                                        .WithValue(m.ID)
+                                        .WithDescription(m.name)  // Game name shown as sub-text in the menu
+                                        .WithEmote(new Emoji(flag));
+                        }).ToList();
+
+                          var menu = new SelectMenuBuilder()
+                              .WithCustomId("update_select")  // Must match the handler's CustomId
+                              .WithPlaceholder("Select a Title ID")
+                              .WithOptions(options)
+                              .WithMinValues(1)
+                              .WithMaxValues(1);
+
+                          var components = new ComponentBuilder()
+                              .WithSelectMenu(menu)
+                              .Build();
+
+                          return (embed, components);
                     }
                 }
 

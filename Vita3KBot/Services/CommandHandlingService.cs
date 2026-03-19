@@ -70,20 +70,24 @@ namespace Vita3KBot.Services
         // ── Slash command handling ───────────────────────────────
         private async Task RegisterSlashCommandsAsync() {
 #if DEBUG
-          // Delete all global commands
-          await _client.Rest.DeleteAllGlobalCommandsAsync();
-          Console.WriteLine("Deleted all global commands.");
+            // Delete all global commands
+            await _client.Rest.DeleteAllGlobalCommandsAsync();
+            Console.WriteLine("Deleted all global commands.");
 
-          // Use RegisterCommandsToGuildAsync(YOUR_GUILD_ID) for instant updates during development
-          var commands = await _interactions.RegisterCommandsToGuildAsync(DevGuildId);
-          Console.WriteLine($"Registered {commands.Count} slash command(s) to guild {DevGuildId}.");
+            // Use RegisterCommandsToGuildAsync(YOUR_GUILD_ID) for instant updates during development
+            var commands = await _interactions.RegisterCommandsToGuildAsync(DevGuildId);
+            Console.WriteLine($"Registered {commands.Count} slash command(s) to guild {DevGuildId}.");
 #else
-      // Use RegisterCommandsGloballyAsync() for production (may take up to 1 hour to propagate)
-      await _interactions.RegisterCommandsGloballyAsync();
+          // Use RegisterCommandsGloballyAsync() for production (may take up to 1 hour to propagate)
+          await _interactions.RegisterCommandsGloballyAsync();
 #endif
         }
 
         private async Task HandleInteractionAsync(SocketInteraction interaction) {
+            // Skip select menus, handled separately in Bot.cs
+            if (interaction is SocketMessageComponent component &&
+                component.Data.Type == Discord.ComponentType.SelectMenu) return;
+
             var context = new SocketInteractionContext(_client, interaction);
             var result = await _interactions.ExecuteCommandAsync(context, _services);
 

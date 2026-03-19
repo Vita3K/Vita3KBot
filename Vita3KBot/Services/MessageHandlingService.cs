@@ -113,10 +113,10 @@ namespace Vita3KBot.Services {
             // 4. Log to moderation channel
             var logEmbed = new EmbedBuilder()
                 .WithTitle("Image spam detected")
-                .WithDescription($"The same image was posted across {SpamChannelThreshold}+ channels within {SpamWindow.TotalMinutes} minute(s).")
+                .WithDescription($"The same image was posted across {SpamChannelThreshold} channels within {SpamWindow.TotalMinutes} minute.")
                 .AddField("User", user.Mention)
                 .AddField("Posts deleted", posts.Count)
-                .WithColor(Color.Orange)
+                .WithColor(Color.Red)
                 .Build();
             await guild.GetTextChannel(757604199159824385).SendMessageAsync(embed: logEmbed).ConfigureAwait(false);
  

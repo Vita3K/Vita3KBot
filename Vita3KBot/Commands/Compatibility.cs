@@ -166,7 +166,7 @@ namespace Vita3KBot.Commands {
         [DC.Summary("Provides PSN update information for the game.")]
         public async Task GetUpdate([DC.Remainder, DC.Summary("Title ID of the game")] string titleId) {
             var normalized = titleId.ToUpper();
-            if (!CompatUtils.IsValidTitleId(normalized)) {
+            if (!CompatUtils.IsValidTitleId(normalized) && normalized.StartsWith("PCS")) {
                 await ReplyAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).");
                 return;
             }
@@ -195,7 +195,7 @@ namespace Vita3KBot.Commands {
         public async Task GetUpdate(
                 [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000)")] string titleId) {
             var normalized = titleId.ToUpper();
-            if (!CompatUtils.IsValidTitleId(normalized)) {
+            if (!CompatUtils.IsValidTitleId(normalized) && normalized.StartsWith("PCS")) {
                 await RespondAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).", ephemeral: true);
                 return;
             }

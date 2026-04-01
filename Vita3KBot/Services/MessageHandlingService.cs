@@ -165,10 +165,10 @@ namespace Vita3KBot.Services {
         // Called by Discord.Net when the bot receives a message.
         private async Task CheckMessage(SocketMessage message) {
             if (message is not SocketUserMessage userMessage) return;
-            if (userMessage.Author is not SocketGuildUser guildUser) return;
-
             await MonitorNewBuilds(userMessage);
             await MonitorMediaMessages(userMessage);
+
+            if (userMessage.Author is not SocketGuildUser guildUser) return;
             await MonitorImageSpam(userMessage, guildUser);
         }
 

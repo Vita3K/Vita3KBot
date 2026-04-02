@@ -92,22 +92,26 @@ namespace Vita3KBot.Services {
                 }
             }
  
-            // 2. Assign spam role
-            //var spamRole = guild.GetRole(677600894929469480);
-            //if (spamRole != null)
-            //    await user.AddRoleAsync(spamRole, new RequestOptions {
-            //        AuditLogReason = $"Image spam: same image posted to {SpamChannelThreshold}+ channels within {SpamWindow.TotalMinutes} minute(s)."
-            //    });
+            // 2. Kick user
+            try {
+                var guildUser = user as IGuildUser ?? guild.GetUser(user.Id);
+                if (guildUser != null)
+                    await guildUser.KickAsync($"Image spam: same image posted to {SpamChannelThreshold}+ channels within {SpamWindow.TotalMinutes} minute(s).");
+                else
+                    Console.WriteLine($"Could not resolve guild user {user.Id} for kick.");
+            } catch {
+                Console.WriteLine($"Failed to kick user {user.Id} from guild {guild.Id}.");
+            }
  
             // 3. Notify user via DM
             try {
                 var dm = await user.CreateDMChannelAsync();
                 await dm.SendMessageAsync(
-                    $"⚠️ **You have been flagged for spam.**\n" +
+                    $"⚠️ **You have been kicked for spam.**\n" +
                     $"Reason: The same image was posted across multiple channels in a short period of time.\n" +
                     $"If you believe this is a mistake, please contact a server moderator.");
             } catch {
-                // Ignore if user has DMs disabled
+                Console.WriteLine($"Could not send DM to user {user.Id}: DMs may be disabled.");
             }
  
             // 4. Log to moderation channel
@@ -148,7 +152,7 @@ namespace Vita3KBot.Services {
         }
 
         // User join event
-        private async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
+        private static async Task HandleUserJoinedAsync(SocketGuildUser j_user) {
             if (j_user.IsBot || j_user.IsWebhook) return;
             try {
                 var dmChannel = await j_user.CreateDMChannelAsync();
@@ -163,7 +167,7 @@ namespace Vita3KBot.Services {
         }
 
         // Called by Discord.Net when the bot receives a message.
-        private async Task CheckMessage(SocketMessage message) {
+        private static async Task CheckMessage(SocketMessage message) {
             if (message is not SocketUserMessage userMessage) return;
             await MonitorNewBuilds(userMessage);
             await MonitorMediaMessages(userMessage);

@@ -18,6 +18,20 @@ namespace Vita3KBot {
 
         // Initializes Discord.Net
         private async Task Start() {
+
+            // This is required to pass koyeb's healthy check.
+            var listener = new System.Net.HttpListener();
+            listener.Prefixes.Add("http://*:8000/");
+            listener.Start();
+            _ = Task.Run(async () => {
+              while (true)
+              {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Close();
+              }
+            });
+
             using (var services = ConfigureServices()) {
 
                 var client = services.GetRequiredService<DiscordSocketClient>();
@@ -64,23 +78,36 @@ namespace Vita3KBot {
                 await Task.Delay(Timeout.Infinite);
             }
         }
-        
+
         private Bot(string token) {
             _token = token;
         }
-        
+
         public static void Main(string[] args) {
             // Init command with token.
             if (args.Length >= 2 && args[0] == "init") {
-                File.WriteAllText("token.txt", args[1]);
+              File.WriteAllText("token.txt", args[1]);
+              Console.WriteLine("Token saved to token.txt");
+              return;
             }
-            
-            // Start bot with token from "token.txt" in working folder.
+
+            // Start bot with token from "token.txt" in working folder or env variables.
             try {
-                var bot = new Bot(File.ReadAllText("token.txt"));
-                bot.Start().GetAwaiter().GetResult();
-            } catch (IOException) {
-                Console.WriteLine("Could not read from token.txt. Did you run `init <token>`?");
+              string? token = Environment.GetEnvironmentVariable("TOKEN");
+
+              // If env not set → fallback to file
+              if (string.IsNullOrWhiteSpace(token)) {
+                token = File.ReadAllText("token.txt").Trim();
+              }
+
+              var bot = new Bot(token);
+              bot.Start().GetAwaiter().GetResult();
+            }
+            catch (IOException) {
+              Console.WriteLine("Could not read token.txt and TOKEN env not set.");
+            }
+            catch (Exception ex) {
+              Console.WriteLine($"Error: {ex.Message}");
             }
         }
 

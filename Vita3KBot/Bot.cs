@@ -31,23 +31,51 @@ namespace Vita3KBot
       if (args.Length >= 2 && args[0] == "init")
       {
         File.WriteAllText("token.txt", args[1]);
+        Console.WriteLine("Token saved to token.txt");
+        return;
       }
 
-      // Start bot with token from "token.txt" in working folder.
+      // Start bot with token from the TOKEN env variable, or "token.txt" in working folder.
       try
       {
-        var bot = new Bot(File.ReadAllText("token.txt"));
+        string token = Environment.GetEnvironmentVariable("TOKEN");
+
+        // If env not set, fall back to the file
+        if (string.IsNullOrWhiteSpace(token))
+        {
+          token = File.ReadAllText("token.txt").Trim();
+        }
+
+        var bot = new Bot(token);
         bot.Start().GetAwaiter().GetResult();
       }
       catch (IOException)
       {
-        Console.WriteLine("Could not read from token.txt. Did you run `init <token>`?");
+        Console.WriteLine("Could not read token.txt and TOKEN env not set.");
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error: {ex.Message}");
       }
     }
 
     // Initializes Discord.Net
     private async Task Start()
     {
+      // This is required to pass Koyeb's health check.
+      var listener = new System.Net.HttpListener();
+      listener.Prefixes.Add("http://*:8000/");
+      listener.Start();
+      _ = Task.Run(async () =>
+      {
+        while (true)
+        {
+          var ctx = await listener.GetContextAsync();
+          ctx.Response.StatusCode = 200;
+          ctx.Response.Close();
+        }
+      });
+
       using var services = ConfigureServices();
 
       var client = services.GetRequiredService<DiscordSocketClient>();

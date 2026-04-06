@@ -10,14 +10,16 @@ namespace Vita3KBot.Commands {
         internal static Embed BuildEmbed() {
             var fullFW       = PSNClient.GetFullFW();
             var systemDataFW = PSNClient.GetSystemDataFW();
+            var preinstDataFW = PSNClient.GetPreinstDataFW();
 
-            return new EmbedBuilder()
+      return new EmbedBuilder()
                 .WithTitle($"The latest firmware version is {PSNClient.GetFWVersion()}")
                 .WithColor(Color.Orange)
                 .WithDescription("Installing the firmware packages in Vita3K allows the emulator to LLE the system modules.")
-                .AddField("License Agreement", "Before downloading the firmware you must read and agree to the license agreement located " + "[here](https://doc.dl.playstation.net/doc/psvita-eula/)")
+                .AddField("License Agreement", "Before downloading the firmware you must read and agree to the license agreement located [here](https://doc.dl.playstation.net/doc/psvita-eula/).")
                 .AddField("Modules Package", $"[Full Firmware Package ({fullFW.Item2}MB)]({fullFW.Item1})", true)
                 .AddField("Fonts Package", $"[Systemdata Firmware Package ({systemDataFW.Item2}MB)]({systemDataFW.Item1})", true)
+                .AddField("Preinst Package", $"[Preinstall Firmware Package ({preinstDataFW.Item2}MB)]({preinstDataFW.Item1})", true)
                 .WithFooter("Both packages have to be installed in Vita3K in order for them to function properly")
                 .Build();
         }

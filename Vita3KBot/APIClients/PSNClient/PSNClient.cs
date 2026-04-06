@@ -19,7 +19,7 @@ namespace APIClients {
             0xE5, 0xE2, 0x78, 0xAA, 0x1E, 0xE3, 0x40, 0x82, 0xA0, 0x88, 0x27, 0x9C, 0x83, 0xF9, 0xBB, 0xC8,
             0x06, 0x82, 0x1C, 0x52, 0xF2, 0xAB, 0x5D, 0x2B, 0x4A, 0xBD, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14
         };
-        private static HMACSHA256 HMAC = new HMACSHA256(HMACKey);
+        private static HMACSHA256 HMAC = new(HMACKey);
         private static readonly string BaseURL = "http://gs-sec.ww.np.dl.playstation.net/pl/np/";
         //all firmware regions are the same therefore use US as default
         private static readonly string FirmwareXML = "http://fus01.psp2.update.playstation.net/update/psp2/list/us/psp2-updatelist.xml";
@@ -161,6 +161,13 @@ namespace APIClients {
             using (XmlReader reader = XmlReader.Create(FirmwareXML)) {
                 UpdateDataList updateDataList = (UpdateDataList)FWSerializer.Deserialize(reader);
                 return (updateDataList.Region.Recovery[0].Image.Text, ToMB(updateDataList.Region.Recovery[0].Image.Size));
+            }
+        }
+
+        public static (string, double) GetPreinstDataFW() {
+            using (XmlReader reader = XmlReader.Create(FirmwareXML)) {
+                UpdateDataList updateDataList = (UpdateDataList)FWSerializer.Deserialize(reader);
+                return (updateDataList.Region.Recovery[1].Image.Text, ToMB(updateDataList.Region.Recovery[1].Image.Size));
             }
         }
 

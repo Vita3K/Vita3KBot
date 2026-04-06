@@ -14,15 +14,15 @@ namespace Vita3KBot.Services {
     public class MessageHandlingService {
         private readonly DiscordSocketClient _client;
         private readonly IServiceProvider _services;
- 
+
         // spam detection
         private static readonly ConcurrentDictionary<(ulong UserId, string Hash), List<(ulong ChannelId, ulong MessageId, DateTime PostedAt)>>
             _imagePostLog = new();
- 
+
         private const int SpamChannelThreshold = 3;   // Number of channels before applying spam role
         private static readonly TimeSpan SpamWindow = TimeSpan.FromMinutes(1); // Detection time window
         private static readonly TimeSpan CacheCleanupInterval = TimeSpan.FromMinutes(5); // How often to sweep stale cache entries
- 
+
         private static string GetImageHash(IAttachment attachment) =>
             $"{attachment.Filename}:{attachment.Size}";
 
@@ -41,47 +41,47 @@ namespace Vita3KBot.Services {
                 }
             }
         }
- 
+
         private static async Task MonitorImageSpam(SocketUserMessage msg, SocketGuildUser guildUser) {
             if (msg.Attachments.Count == 0) return;
             // Ignore bots, webhooks and administrators
             if (guildUser.IsBot || guildUser.IsWebhook) return;
             if (guildUser.GuildPermissions.Administrator) return;
- 
+
             var now = DateTime.UtcNow;
- 
+
             foreach (var attachment in msg.Attachments) {
                 // Only process image files
                 var ext = System.IO.Path.GetExtension(attachment.Filename).ToLower();
                 if (ext is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp")) continue;
- 
+
                 var key = (guildUser.Id, GetImageHash(attachment));
- 
+
                 var posts = _imagePostLog.GetOrAdd(key, _ => new List<(ulong, ulong, DateTime)>());
- 
+
                 lock (posts) {
                     // Remove entries outside the time window
                     posts.RemoveAll(p => now - p.PostedAt > SpamWindow);
                     // Record this post
                     posts.Add((msg.Channel.Id, msg.Id, now));
- 
+
                     var distinctChannels = posts.Select(p => p.ChannelId).Distinct().Count();
                     if (distinctChannels < SpamChannelThreshold) return;
                 }
- 
+
                 // Threshold reached — apply spam action
                 await ExecuteImageSpamAction(guildUser, posts.ToList(), msg);
                 return;
             }
         }
- 
+
         private static async Task ExecuteImageSpamAction(
                 SocketGuildUser user,
                 List<(ulong ChannelId, ulong MessageId, DateTime PostedAt)> posts,
                 SocketUserMessage triggerMsg) {
- 
+
             var guild = user.Guild;
- 
+
             // 1. Delete all detected posts
             foreach (var (channelId, messageId, _) in posts) {
                 try {
@@ -91,7 +91,7 @@ namespace Vita3KBot.Services {
                     // Ignore deletion failures and continue
                 }
             }
- 
+
             // 2. Kick user
             try {
                 var guildUser = user as IGuildUser ?? guild.GetUser(user.Id);
@@ -102,7 +102,7 @@ namespace Vita3KBot.Services {
             } catch {
                 Console.WriteLine($"Failed to kick user {user.Id} from guild {guild.Id}.");
             }
- 
+
             // 3. Notify user via DM
             try {
                 var dm = await user.CreateDMChannelAsync();
@@ -113,7 +113,7 @@ namespace Vita3KBot.Services {
             } catch {
                 Console.WriteLine($"Could not send DM to user {user.Id}: DMs may be disabled.");
             }
- 
+
             // 4. Log to moderation channel
             var logEmbed = new EmbedBuilder()
                 .WithTitle("Image spam detected")
@@ -123,7 +123,7 @@ namespace Vita3KBot.Services {
                 .WithColor(Color.Red)
                 .Build();
             await guild.GetTextChannel(757604199159824385).SendMessageAsync(embed: logEmbed).ConfigureAwait(false);
- 
+
             // Clear cache entries for this user
             foreach (var key in _imagePostLog.Keys.Where(k => k.UserId == user.Id).ToList())
                 _imagePostLog.TryRemove(key, out _);

@@ -34,6 +34,17 @@ namespace APIClients {
             string buildNum = latestRelease.Body.Substring(latestRelease.Body.IndexOf("Build:") + 6).Trim();
             BuildAssets assets = await GetReleaseAssets(github, buildNum, latestRelease);
 
+            // Truncate bodyText to fit Discord's 4096 char limit for description
+            // Title format: "**{prInfo.Title}**\n\n" takes up space, so account for it
+            string title = prInfo != null ? prInfo.Title : "";
+            int titleOverhead = $"**{title}**\n\n".Length;
+            int maxBodyLength = 4096 - titleOverhead;
+
+            if (bodyText.Length > maxBodyLength)
+            {
+              bodyText = bodyText.Substring(0, maxBodyLength - 3) + "...";
+            }
+
             EmbedBuilder LatestBuild = new();
             if (prInfo != null) {
                 LatestBuild.WithTitle($"PR: #{prInfo.Number} By {prInfo.User.Login}")
@@ -43,7 +54,7 @@ namespace APIClients {
                 .WithUrl($"https://github.com/vita3k/vita3k/commit/{REF.Sha}");
             }
 
-            LatestBuild.WithDescription($"**{prInfo.Title}**\n\n{bodyText}")
+            LatestBuild.WithDescription($"**{title}**\n\n{bodyText}")
             .WithColor(Color.Orange)
             .AddField("Windows", $"[{assets.Windows_x86_64.Name}]({assets.Windows_x86_64.BrowserDownloadUrl})", true)
             .AddField("Linux", $"[{assets.x86_64_AppImage.Name}]({assets.x86_64_AppImage.BrowserDownloadUrl})", true)

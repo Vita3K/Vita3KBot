@@ -10,6 +10,7 @@ using Discord.Interactions;
 using APIClients;
 using Octokit;
 using DC = Discord.Commands;
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
 
@@ -152,7 +153,8 @@ namespace Vita3KBot.Commands {
     public class CompatibilityPrefix : DC.ModuleBase<DC.SocketCommandContext> {
         [DC.Command, DC.Name("compat")]
         [DC.Summary("Provides a compatibility report of the game.")]
-        public async Task Compatibility([DC.Remainder, DC.Summary("Game name to search")] string keyword) {
+        [PrefixRequireRoleOrChannel]
+    public async Task Compatibility([DC.Remainder, DC.Summary("Game name to search")] string keyword) {
             var result = await CompatUtils.SearchCompat(keyword);
             if (result == null) return;
             var (message, embed) = result.Value;
@@ -164,6 +166,7 @@ namespace Vita3KBot.Commands {
     public class UpdatePrefix : DC.ModuleBase<DC.SocketCommandContext> {
         [DC.Command, DC.Name("update")]
         [DC.Summary("Provides PSN update information for the game.")]
+        [PrefixRequireRoleOrChannel]
         public async Task GetUpdate([DC.Remainder, DC.Summary("Title ID of the game or English game title")] string titleId) {
             var normalized = titleId.ToUpper();
             if (!CompatUtils.IsValidTitleId(normalized) && normalized.StartsWith("PCS")) {
@@ -179,6 +182,7 @@ namespace Vita3KBot.Commands {
 
     public class CompatibilitySlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("compat", "Provides a compatibility report of the game.")]
+        [SlashRequireRoleOrChannel]
         public async Task Compatibility(
                 [Discord.Interactions.Summary("keyword", "Game name to search")] string keyword) {
             // Defer since GitHub search may take a moment
@@ -192,6 +196,7 @@ namespace Vita3KBot.Commands {
 
     public class UpdateSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("update", "Provides PSN update information for the game.")]
+        [SlashRequireRoleOrChannel]
         public async Task GetUpdate(
                 [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000) or English game title")] string titleId) {
             var normalized = titleId.ToUpper();

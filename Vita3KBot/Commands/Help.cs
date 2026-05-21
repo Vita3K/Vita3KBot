@@ -21,6 +21,7 @@ namespace Vita3KBot.Commands {
 
         [DC.Command, DC.Name("help")]
         [DC.Summary("Lists all commands.")]
+
         public async Task Help([DC.Remainder, DC.Summary("Name of command")] string command) {
             var result = _commands.Search(command);
             if (!result.IsSuccess) {

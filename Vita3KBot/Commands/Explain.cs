@@ -6,6 +6,7 @@ using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using DC = Discord.Commands;
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
 
@@ -35,6 +36,7 @@ namespace Vita3KBot.Commands {
     [DC.Group("explain")]
     public class ExplainPrefix : DC.ModuleBase<DC.SocketCommandContext> {
         [DC.Group("list")]
+        [PrefixRequireRoleOrChannel]
         public class List : DC.ModuleBase<DC.SocketCommandContext> {
             [DC.Command, DC.Name("list"), DC.Priority(1)]
             [DC.Summary("Lists all topics/terms that can be explained")]
@@ -44,6 +46,7 @@ namespace Vita3KBot.Commands {
 
         [DC.Command, DC.Name("explain"), DC.Priority(0)]
         [DC.Summary("Explains a topic or a term")]
+        [PrefixRequireRoleOrChannel]
         public async Task Explain([DC.Remainder, DC.Summary("Topic to explain")] string topic) {
             var explanation = ExplainUtils.GetExplanation(topic);
             await ReplyAsync(explanation ?? $"No explanation listed for `{topic}`.");
@@ -54,6 +57,7 @@ namespace Vita3KBot.Commands {
 
     public class ExplainSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("explain", "Explains a topic or a term")]
+        [SlashRequireRoleOrChannel]
         public async Task Explain(
                 [Discord.Interactions.Summary("topic", "Topic to explain")] string topic) {
             var explanation = ExplainUtils.GetExplanation(topic);
@@ -61,6 +65,7 @@ namespace Vita3KBot.Commands {
         }
 
         [SlashCommand("explain-list", "Lists all topics/terms that can be explained")]
+        [SlashRequireRoleOrChannel]
         public async Task ExplainList()
             => await RespondAsync(embed: ExplainUtils.BuildListEmbed());
     }

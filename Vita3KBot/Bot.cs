@@ -23,7 +23,7 @@ namespace Vita3KBot {
                 var client = services.GetRequiredService<DiscordSocketClient>();
                 client.Log += LogAsync;
                 services.GetRequiredService<CommandService>().Log += LogAsync;
-                
+
                 // Is this really the best place for this?
                 client.SelectMenuExecuted += async (interaction) =>
                 {
@@ -64,17 +64,17 @@ namespace Vita3KBot {
                 await Task.Delay(Timeout.Infinite);
             }
         }
-        
+
         private Bot(string token) {
             _token = token;
         }
-        
+
         public static void Main(string[] args) {
             // Init command with token.
             if (args.Length >= 2 && args[0] == "init") {
                 File.WriteAllText("token.txt", args[1]);
             }
-            
+
             // Start bot with token from "token.txt" in working folder.
             try {
                 var bot = new Bot(File.ReadAllText("token.txt"));

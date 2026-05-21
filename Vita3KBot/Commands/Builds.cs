@@ -9,7 +9,7 @@ namespace Vita3KBot.Commands
 
   // ── Prefix command ───────────────────────────────────────────
 
-  [DC.Group("latest"), DC.Alias("download")]
+  [DC.Group("latest")]
   public class BuildsPrefix : DC.ModuleBase<DC.SocketCommandContext> {
     [DC.Command, DC.Name("latest")]
     [DC.Summary("Provides a link to Vita3K's current latest build.")]

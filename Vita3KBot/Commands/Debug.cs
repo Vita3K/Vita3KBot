@@ -1,12 +1,12 @@
+using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-
-using Discord.Commands;
-using Discord.WebSocket;
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
-    [Group("probe-role")]
+    [Group("probe-role"), RequireModeratorRole]
     public class Debug : ModuleBase<SocketCommandContext> {
 
         // Get id for a role. Helpful when creating commands that might query, give, remove roles.

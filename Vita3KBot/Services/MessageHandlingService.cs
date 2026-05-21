@@ -156,11 +156,12 @@ namespace Vita3KBot.Services {
             if (j_user.IsBot || j_user.IsWebhook) return;
             try {
                 var dmChannel = await j_user.CreateDMChannelAsync();
-                await dmChannel.SendMessageAsync("Welcome to Vita3K! \n " +
+                await dmChannel.SendMessageAsync("Welcome to Vita3K server! \n " +
                     "Please read the server <#415122640051896321> and <#486173784135696418> thoroughly before posting. \n " + "\n " +
                     "For the latest up-to-date guide on game installation and hardware requirements, please visit <https://vita3k.org/quickstart.html>. \n " + "\n " +
                     "This emulator is still in it's early stages and some commercial games do not run yet! Feedback is greatly appreciated. \n " +
-                    "For current issues with the emulator visit the GitHub repo at https://github.com/Vita3K/Vita3K/issues.");
+                    "For current issues with the emulator visit the GitHub repo at https://github.com/Vita3K/Vita3K/issues. \n " + "\n" +
+                    "**__No piracy!__** We do not provide support for pirated games nor do we allow discussions about piracy either.") ;
             } catch (Discord.Net.HttpException ex) when ((int?)ex.DiscordCode == 50278) {
                 // To keep the log clean, ignore users with DMs disabled
             }

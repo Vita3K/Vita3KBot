@@ -4,6 +4,7 @@ using Discord.Commands;
 using Discord.Interactions;
 using APIClients;
 using DC = Discord.Commands;
+using Vita3KBot.Commands.Attributes;
 
 namespace Vita3KBot.Commands {
     internal static class FirmwareData {
@@ -31,6 +32,7 @@ namespace Vita3KBot.Commands {
     public class FirmwarePrefix : DC.ModuleBase<DC.SocketCommandContext> {
         [DC.Command, DC.Name("firmware")]
         [DC.Summary("Gets the latest firmware package for all regions")]
+        [PrefixRequireRoleOrChannel]
         public async Task Firmware()
             => await ReplyAsync(embed: FirmwareData.BuildEmbed());
     }
@@ -39,6 +41,7 @@ namespace Vita3KBot.Commands {
 
     public class FirmwareSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("firmware", "Gets the latest firmware package for all regions")]
+        [SlashRequireRoleOrChannel]
         public async Task Firmware()
             => await RespondAsync(embed: FirmwareData.BuildEmbed());
     }

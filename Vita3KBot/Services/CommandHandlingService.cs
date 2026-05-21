@@ -46,13 +46,15 @@ namespace Vita3KBot.Services
             var prefixStart = 0;
             if (userMessage.HasCharPrefix(Prefix, ref prefixStart)) {
                 var context = new SocketCommandContext(_client, userMessage);
+                // Show typing indicator while the command is processing
+                await context.Channel.TriggerTypingAsync();
                 await _commands.ExecuteAsync(context, prefixStart, _services);
             }
         }
 
         // Triggered when a command finishes executing (whether successful or not)
         private async Task CommandExecutedAsync(Optional<CommandInfo> command, ICommandContext context, Discord.Commands.IResult result) {
-            if (result.IsSuccess || result.Error == CommandError.UnknownCommand) return;
+            if (result.IsSuccess || result.Error == CommandError.UnknownCommand || result.Error == CommandError.UnmetPrecondition) return;
 
             if (ShowStackTrace && result.Error == CommandError.Exception && result is Discord.Commands.ExecuteResult execution) {
                 await context.Channel.SendMessageAsync(Utils.Code(execution.Exception.Message + "\n\n" + execution.Exception.StackTrace));
@@ -93,7 +95,7 @@ namespace Vita3KBot.Services
 
             // Reply with an ephemeral error message visible only to the user
             if (!result.IsSuccess)
-                await interaction.RespondAsync($"Halt! We've hit an error.{Utils.Code(result.ErrorReason)}", ephemeral: true);
+                await interaction.FollowupAsync($"Halt! We've hit an error.{Utils.Code(result.ErrorReason)}", ephemeral: true);
         }
     }
 }

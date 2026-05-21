@@ -119,22 +119,27 @@ namespace Vita3KBot.Commands {
     public class EightBallSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("8ball", "Accurately answers yes/no questions.")]
         public async Task Predict(
-            [Discord.Interactions.Summary("question", "The question you wish to ask.")] string question)
-            => await RespondAsync(FunData.RandomEightBall());
+            [Discord.Interactions.Summary("question", "The question you wish to ask.")] string question) {
+            await DeferAsync();
+            await FollowupAsync(FunData.RandomEightBall());
+        }
     }
 
     public class WhenSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("when", "Determines when some event will happen.")]
         public async Task Predict(
-            [Discord.Interactions.Summary("event", "A description of an event to predict.")] string question)
-            => await RespondAsync(FunData.RandomWhen());
+            [Discord.Interactions.Summary("event", "A description of an event to predict.")] string question) {
+            await DeferAsync();
+            await FollowupAsync(FunData.RandomWhen());
+        }
     }
 
     public class PingSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("ping", "Checks the bot's latency.")]
         public async Task Ping() {
+            await DeferAsync();
             var sw = Stopwatch.StartNew();
-            await RespondAsync("Pinging...");
+            await FollowupAsync("Pinging...");
             sw.Stop();
             await ModifyOriginalResponseAsync(m =>
                 m.Content = $"🏓 Pong! Latency: **{sw.ElapsedMilliseconds}ms**");
@@ -143,9 +148,11 @@ namespace Vita3KBot.Commands {
 
     public class RpsSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("rps", "Play rock-paper-scissors against the bot.")]
-        public async Task Play()
-            => await RespondAsync("✊✋✌️ Rock, paper, scissors, go! Choose your hand:",
+        public async Task Play() {
+            await DeferAsync();
+            await FollowupAsync("✊✋✌️ Rock, paper, scissors, go! Choose your hand:",
                 components: FunData.RpsButtons());
+        }
     }
 
     // ── Button interaction handler ───────────────────────────────

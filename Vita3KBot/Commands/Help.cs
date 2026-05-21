@@ -21,7 +21,6 @@ namespace Vita3KBot.Commands {
 
         [DC.Command, DC.Name("help")]
         [DC.Summary("Lists all commands.")]
-
         public async Task Help([DC.Remainder, DC.Summary("Name of command")] string command) {
             var result = _commands.Search(command);
             if (!result.IsSuccess) {
@@ -53,24 +52,26 @@ namespace Vita3KBot.Commands {
 
         [SlashCommand("help", "Lists all commands, or shows details about a specific command.")]
         public async Task Help(
-                [Discord.Interactions.Summary("command", "Name of command (leave empty for full list)")] string command = "") {
+            [Discord.Interactions.Summary("command", "Name of command (leave empty for full list)")] string command = "") {
+             await DeferAsync();
+
             // RolesUtils requires a DC.ICommandContext, so we check roles via the raw socket user instead
             var whitelisted = RolesUtils.IsWhitelisted(Context.User);
             var moderator = RolesUtils.IsModerator(Context.User);
 
             if (string.IsNullOrWhiteSpace(command)) {
-                await RespondAsync(embed: HelpUtils.BuildListEmbed(_commands.Modules, whitelisted, moderator).Build());
+                await FollowupAsync(embed: HelpUtils.BuildListEmbed(_commands.Modules, whitelisted, moderator).Build());
                 return;
             }
 
             var result = _commands.Search(command);
             if (!result.IsSuccess) {
-                await RespondAsync("Couldn't find the command you're looking for.", ephemeral: true);
+                await FollowupAsync("Couldn't find the command you're looking for.", ephemeral: true);
                 return;
             }
 
             var match = result.Commands.FirstOrDefault();
-            await RespondAsync(embed: HelpUtils.BuildCommandEmbed(match, whitelisted, moderator).Build());
+            await FollowupAsync(embed: HelpUtils.BuildCommandEmbed(match, whitelisted, moderator).Build());
         }
     }
 

@@ -10,21 +10,23 @@ namespace Vita3KBot.Commands
 
   // ── Prefix command ───────────────────────────────────────────
 
-  [DC.Group("latest")]
-  public class BuildsPrefix : DC.ModuleBase<DC.SocketCommandContext> {
-    [DC.Command, DC.Name("latest")]
-    [DC.Summary("Provides a link to Vita3K's current latest build.")]
-    [PrefixRequireRoleOrChannel]
-    private async Task GetBuild()
-        => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
-  }
+    [DC.Group("latest")]
+    public class BuildsPrefix : DC.ModuleBase<DC.SocketCommandContext> {
+      [DC.Command, DC.Name("latest")]
+      [DC.Summary("Provides a link to Vita3K's current latest build.")]
+      [PrefixRequireRoleOrChannel]
+      private async Task GetBuild()
+          => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
+    }
 
-  // ── Slash command ────────────────────────────────────────────
+    // ── Slash command ────────────────────────────────────────────
 
-  public class BuildsSlash : InteractionModuleBase<SocketInteractionContext> {
-    [SlashCommand("latest", "Provides a link to Vita3K's current latest build.")]
-    [SlashRequireRoleOrChannel]
-    private async Task GetBuild()
-        => await RespondAsync(embed: await GithubClient.GetLatestBuild());
-  }
+    public class BuildsSlash : InteractionModuleBase<SocketInteractionContext> {
+      [SlashCommand("latest", "Provides a link to Vita3K's current latest build.")]
+      [SlashRequireRoleOrChannel]
+        private async Task GetBuild() {
+            await DeferAsync();
+            await FollowupAsync(embed: await GithubClient.GetLatestBuild());
+        }
+    }
 }

@@ -59,14 +59,17 @@ namespace Vita3KBot.Commands {
         [SlashCommand("explain", "Explains a topic or a term")]
         [SlashRequireRoleOrChannel]
         public async Task Explain(
-                [Discord.Interactions.Summary("topic", "Topic to explain")] string topic) {
+            [Discord.Interactions.Summary("topic", "Topic to explain")] string topic) {
+            await DeferAsync();
             var explanation = ExplainUtils.GetExplanation(topic);
-            await RespondAsync(explanation ?? $"No explanation listed for `{topic}`.", ephemeral: explanation == null);
+            await FollowupAsync(explanation ?? $"No explanation listed for `{topic}`.", ephemeral: explanation == null);
         }
 
         [SlashCommand("explain-list", "Lists all topics/terms that can be explained")]
         [SlashRequireRoleOrChannel]
-        public async Task ExplainList()
-            => await RespondAsync(embed: ExplainUtils.BuildListEmbed());
+        public async Task ExplainList() {
+            await DeferAsync();
+            await FollowupAsync(embed: ExplainUtils.BuildListEmbed());
+        }
     }
 }

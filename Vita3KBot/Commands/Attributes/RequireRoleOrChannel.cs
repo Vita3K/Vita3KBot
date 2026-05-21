@@ -35,12 +35,27 @@ public class PrefixRequireRoleOrChannel : DC.PreconditionAttribute {
 
             // Delete the original message and warn the user with a mention
             await context.Message.DeleteAsync();
-            var warning = await context.Channel.SendMessageAsync(
-                $"{context.User.Mention} ⚠️ This command can only be used in the specified channel."
-            );
+
+            // Fire-and-forget to avoid blocking the gateway task
+            _ = Task.Run(async () => {
+                try {
+                    var warning = await context.Channel.SendMessageAsync(
+                        $"{context.User.Mention} ⚠️ This command can only be used in <#577624167541637158>."
+                    );
+
+                    // Delete the warning after 10 seconds to keep the channel clean
+                    await Task.Delay(10000);
+                    await warning.DeleteAsync();
+                } catch {
+                    // Ignore failures
+                }
+            });
+
+            return DC.PreconditionResult.FromError("Insufficient permissions");
         }
 
-        return DC.PreconditionResult.FromError("This command can only be used in a server");
+        // User is in a DM, always allow
+        return DC.PreconditionResult.FromSuccess();
     }
 }
 
@@ -67,20 +82,15 @@ public class PrefixRequireRoleOrChannel : DC.PreconditionAttribute {
 
                 // Warn the user with an ephemeral message (only visible to them)
                 await context.Interaction.RespondAsync(
-                    "⚠️ This command can only be used in the specified channel.",
+                    "⚠️ This command can only be used in <#577624167541637158>.",
                     ephemeral: true
                 );
 
                 return DI.PreconditionResult.FromError("Insufficient permissions");
             }
 
-            // Warn the user if the command is used outside a server
-            await context.Interaction.RespondAsync(
-                "⚠️ This command can only be used in a server.",
-                ephemeral: true
-            );
-
-            return DI.PreconditionResult.FromError("This command can only be used in a server");
+            // User is in a DM, always allow
+            return DI.PreconditionResult.FromSuccess();
         }
     }
 }

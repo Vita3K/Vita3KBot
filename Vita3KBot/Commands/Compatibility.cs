@@ -184,8 +184,7 @@ namespace Vita3KBot.Commands {
         [SlashCommand("compat", "Provides a compatibility report of the game.")]
         [SlashRequireRoleOrChannel]
         public async Task Compatibility(
-                [Discord.Interactions.Summary("keyword", "Game name to search")] string keyword) {
-            // Defer since GitHub search may take a moment
+            [Discord.Interactions.Summary("keyword", "Game name to search")] string keyword) {
             await DeferAsync();
             var result = await CompatUtils.SearchCompat(keyword);
             if (result == null) return;
@@ -198,20 +197,22 @@ namespace Vita3KBot.Commands {
         [SlashCommand("update", "Provides PSN update information for the game.")]
         [SlashRequireRoleOrChannel]
         public async Task GetUpdate(
-                [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000) or English game title")] string titleId) {
+            [Discord.Interactions.Summary("title_id", "Title ID of the game (e.g. PCSE00000) or English game title")] string titleId) {
+            await DeferAsync();
             var normalized = titleId.ToUpper();
             if (!CompatUtils.IsValidTitleId(normalized) && normalized.StartsWith("PCS")) {
-                await RespondAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).", ephemeral: true);
+                await FollowupAsync("❌ Invalid title ID. Please enter it in the format `PCSE12345` (PCS + 1 letter + 5 digits).", ephemeral: true);
                 return;
             }
             var (embed, components) = PSNClient.GetTitlePatch(normalized);
-            await RespondAsync(embed: embed, components: components);
+            await FollowupAsync(embed: embed, components: components);
         }
     }
 
     public class UpdateButtonHandler : InteractionModuleBase<SocketInteractionContext> {
         [ComponentInteraction("update:*")]
         public async Task OnUpdateButton(string selectedId) {
+            await DeferAsync();
             var (embed, components) = PSNClient.GetTitlePatch(selectedId);
             if (Context.Interaction is IComponentInteraction component)
                 await component.UpdateAsync(m => {

@@ -42,7 +42,9 @@ namespace Vita3KBot.Commands {
     public class FirmwareSlash : InteractionModuleBase<SocketInteractionContext> {
         [SlashCommand("firmware", "Gets the latest firmware package for all regions")]
         [SlashRequireRoleOrChannel]
-        public async Task Firmware()
-            => await RespondAsync(embed: FirmwareData.BuildEmbed());
+        public async Task Firmware() {
+            await DeferAsync();
+            await FollowupAsync(embed: FirmwareData.BuildEmbed());
+        }
     }
 }

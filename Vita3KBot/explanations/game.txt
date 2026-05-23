@@ -1,0 +1,5 @@
+﻿For commercial games, dump them with [NoNpDrm](<https://github.com/TheOfficialFloW/NoNpDrm/releases>). If the game is known not to work with NoNpDrm, you can optionally replace the executable with a [FAGDec](<https://github.com/CelesteBlue-dev/PSVita-RE-tools/tree/master/FAGDec/build>) dump. Vitamin dumps are **not** supported. Detailed instructions can be found in the [Quick Start guide](https://vita3k.org/quickstart).
+
+For homebrew, get them through **[VitaDB](https://vitadb.rinnegatamante.it/)**.
+
+-# ⓘ We do not condone/support piracy, but what you're looking for might actually be right [here](<https://youtu.be/dQw4w9WgXcQ>).

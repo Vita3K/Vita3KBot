@@ -20,8 +20,7 @@ namespace Vita3KBot {
             }
 
             client.Dispose();
-            throw new Exception("Received " + response.StatusCode
-                                        + " status code from " + address + parameters + ".");
+            throw new Exception("Received " + response.StatusCode + " status code from " + address + parameters + ".");
         }
 
         // Discord Markdown Code.

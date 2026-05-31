@@ -264,6 +264,112 @@ namespace Vita3KBot.Services
         _imagePostLog.TryRemove(key, out _);
     }
 
+    private static async Task MonitorMentions(SocketUserMessage msg, SocketGuildUser guildUser)
+    {
+      if (guildUser.IsBot || guildUser.IsWebhook) return;
+
+      var currentUser = (msg.Channel as SocketGuildChannel)?.Guild.CurrentUser;
+      if (currentUser == null) return;
+      if (!msg.MentionedUsers.Any(u => u.Id == currentUser.Id)) return;
+
+      var history = await msg.Channel
+          .GetMessagesAsync(msg, Direction.Before, 10)
+          .FlattenAsync();
+
+      var historyText = string.Join("\n", history
+          .Reverse()
+          .Select(m => $"{m.Author.Username}: {m.Content}"));
+
+      var (answer, emoji) = await AskGeminiWithContextAsync(msg.Content, historyText, msg.Author.Username);
+
+      // React with AI-chosen emoji
+      try
+      {
+        await msg.AddReactionAsync(new Emoji(emoji));
+      }
+      catch
+      {
+        await msg.AddReactionAsync(new Emoji("👀")); // Fallback if emoji is invalid
+      }
+
+      if (answer.Length > 1900) answer = answer[..1900] + "…";
+      await msg.ReplyAsync(answer);
+    }
+
+    private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(
+        string question, string history, string askerName)
+    {
+      const string FallbackEmoji = "👀";
+
+      try
+      {
+        var prompt = $"""
+            Recent chat history:
+            {history}
+
+            {askerName} is now asking you: {question}
+            """;
+
+        var requestBody = new
+        {
+          system_instruction = new
+          {
+            parts = new[] { new { text = """
+                    You are in the Vita3K Discord server.
+                    Vita3K is an open-source PlayStation Vita emulator for PC.
+                    Assume topics relate to Vita3K, PS Vita, or emulation unless clearly otherwise.
+                    Keep answers short and punchy.
+                    Never ask follow-up questions. Never suggest continuing the conversation.
+                    Answer in one shot, done, finito.
+
+                    You MUST respond in the following JSON format and nothing else:
+                    {
+                      "answer": "your response here",
+                      "emoji": "single emoji that best reacts to the message"
+                    }
+                    """ } }
+          },
+          contents = new[] {
+                new { parts = new[] { new { text = prompt } } }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var response = await _httpClient.PostAsync(
+            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GeminiApiKey}",
+            new StringContent(json, Encoding.UTF8, "application/json")
+        );
+
+        if (!response.IsSuccessStatusCode) return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+
+        var resultJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(resultJson);
+
+        var raw = doc.RootElement
+            .GetProperty("candidates")[0]
+            .GetProperty("content")
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        // Strip markdown code fences if present
+        var clean = raw.Trim().TrimStart('`');
+        if (clean.StartsWith("json")) clean = clean[4..];
+        clean = clean.Trim('`').Trim();
+
+        using var parsed = JsonDocument.Parse(clean);
+        var answer = parsed.RootElement.GetProperty("answer").GetString() ?? "No response.";
+        var emoji = parsed.RootElement.GetProperty("emoji").GetString() ?? FallbackEmoji;
+
+        return (answer, emoji);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Gemini mention error: {ex.Message}");
+        return ("The API seems to be having a moment 🤒", FallbackEmoji);
+      }
+    }
+
     // ========================
     // Build & Channel Monitors
     // ========================
@@ -331,6 +437,7 @@ namespace Vita3KBot.Services
       if (userMessage.Author is not SocketGuildUser guildUser) return;
       await MonitorImageSpam(userMessage, guildUser);
       await MonitorPiracy(userMessage, guildUser);
+      await MonitorMentions(userMessage, guildUser);
     }
 
     // Initializes the Message Handler, subscribes to events, etc.

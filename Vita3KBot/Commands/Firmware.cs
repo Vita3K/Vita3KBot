@@ -21,7 +21,8 @@ namespace Vita3KBot.Commands {
                 .AddField("Modules Package", $"[Full Firmware Package ({fullFW.Item2}MB)]({fullFW.Item1})", true)
                 .AddField("Fonts Package", $"[Systemdata Firmware Package ({systemDataFW.Item2}MB)]({systemDataFW.Item1})", true)
                 .AddField("Preinst Package", $"[Preinstall Firmware Package ({preinstDataFW.Item2}MB)]({preinstDataFW.Item1})", true)
-                .WithFooter("Both packages have to be installed in Vita3K in order for them to function properly")
+                .WithFooter("Module packages have to be installed in Vita3K in order for them to function properly\n" +
+                            "⚠️ Please do not use Firefox, as many users have reported being unable to download files.")
                 .Build();
         }
     }

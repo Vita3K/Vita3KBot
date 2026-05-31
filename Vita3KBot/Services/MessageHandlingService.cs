@@ -19,13 +19,12 @@ namespace Vita3KBot.Services
   {
     private readonly DiscordSocketClient _client;
     private readonly IServiceProvider _services;
+    private static readonly HttpClient _httpClient = new();
+    private static readonly string GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? throw new InvalidOperationException("GEMINI_API_KEY environment variable is not set.");
 
     // ========================
     // Piracy Detection
     // ========================
-    private static readonly HttpClient _httpClient = new();
-    private static readonly string GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? throw new InvalidOperationException("GEMINI_API_KEY environment variable is not set.");
-    private static readonly ConcurrentDictionary<ulong, int> _piracyWarningCount = new();
 
     // Trigger keywords — only send to AI if one of these is present
     private static readonly string[] TriggerKeywords =
@@ -69,8 +68,8 @@ namespace Vita3KBot.Services
       {
         var prompt = $"""
                     Determine whether the following Discord message is related to
-                    piracy (illegal downloading, cracking, ROM distribution requests, etc.)
-                    of games, movies, or music.
+                    piracy (illegal downloading, ROM distribution requests, etc.)
+                    of games.
 
                     Message: "{content}"
 

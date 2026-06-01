@@ -70,6 +70,7 @@ namespace Vita3KBot.Services
                     Determine whether the following Discord message is related to
                     piracy (illegal downloading, ROM distribution requests, etc.)
                     of games.
+                    However, if the message is intended to discourage or stop piracy, please answer“No”
 
                     Message: "{content}"
 
@@ -272,96 +273,181 @@ namespace Vita3KBot.Services
       if (currentUser == null) return;
       if (!msg.MentionedUsers.Any(u => u.Id == currentUser.Id)) return;
 
-      var history = await msg.Channel
-          .GetMessagesAsync(msg, Direction.Before, 10)
-          .FlattenAsync();
+      // History fetching moved into AskGeminiWithContextAsync
+      var (answer, emoji) = await AskGeminiWithContextAsync(msg, msg.Author.Username);
 
-      var historyText = string.Join("\n", history
-          .Reverse()
-          .Select(m => $"{m.Author.Username}: {m.Content}"));
-
-      var (answer, emoji) = await AskGeminiWithContextAsync(msg.Content, historyText, msg.Author.Username);
-
-      // React with AI-chosen emoji
       try
       {
         await msg.AddReactionAsync(new Emoji(emoji));
       }
       catch
       {
-        await msg.AddReactionAsync(new Emoji("👀")); // Fallback if emoji is invalid
+        await msg.AddReactionAsync(new Emoji("👀"));
       }
 
       if (answer.Length > 1900) answer = answer[..1900] + "…";
       await msg.ReplyAsync(answer);
     }
 
-    private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(
-        string question, string history, string askerName)
-    {
+    private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(SocketUserMessage msg, string askerName) {
       const string FallbackEmoji = "👀";
+      const string NormalModel = "gemini-3.1-flash-lite";
+      const string SearchModel = "gemini-2.5-flash";
+      const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+
+      const string SystemPromptJson = """
+        You are in the Vita3K Discord server.
+        Vita3K is an open-source PlayStation Vita emulator for PC.
+        Assume topics relate to Vita3K, PS Vita, or emulation unless clearly otherwise.
+        Keep answers short and punchy.
+        Never ask follow-up questions. Never suggest continuing the conversation.
+        Answer in one shot, done, finito.
+        You can only use English. If the question is not in English, respond in English regardless.
+
+        You MUST respond in the following JSON format and nothing else:
+        {
+          "answer": "your response here",
+          "emoji": "single emoji that best reacts to the message"
+        }
+        """;
+
+      const string SystemPromptSearch = """
+        You are in the Vita3K Discord server.
+        Vita3K is an open-source PlayStation Vita emulator for PC.
+        Assume topics relate to Vita3K, PS Vita, or emulation unless clearly otherwise.
+        Keep answers short and punchy.
+        Never ask follow-up questions. Never suggest continuing the conversation.
+        Answer in one shot, done, finito.
+        You can only use English. If the question is not in English, respond in English regardless.
+        """;
 
       try
       {
+        // Fetch message history inside the method
+        var history = await msg.Channel
+            .GetMessagesAsync(msg, Direction.Before, 10)
+            .FlattenAsync();
+
+        var historyText = string.Join("\n", history
+            .Reverse()
+            .Select(m => $"{m.Author.Username}: {m.Content}"));
+
         var prompt = $"""
             Recent chat history:
-            {history}
+            {historyText}
 
-            {askerName} is now asking you: {question}
+            {askerName} is now asking you: {msg.Content}
             """;
 
-        var requestBody = new
+        // Step 1: Classify whether grounding is needed
+        var classifyBody = new
         {
           system_instruction = new
           {
-            parts = new[] { new { text = """
-                    You are in the Vita3K Discord server.
-                    Vita3K is an open-source PlayStation Vita emulator for PC.
-                    Assume topics relate to Vita3K, PS Vita, or emulation unless clearly otherwise.
-                    Keep answers short and punchy.
-                    Never ask follow-up questions. Never suggest continuing the conversation.
-                    Answer in one shot, done, finito.
-
-                    You MUST respond in the following JSON format and nothing else:
-                    {
-                      "answer": "your response here",
-                      "emoji": "single emoji that best reacts to the message"
-                    }
-                    """ } }
+            parts = new[] { new { text = "You are a classifier. Reply with only 'SEARCH' or 'NO_SEARCH'." } }
           },
           contents = new[] {
-                new { parts = new[] { new { text = prompt } } }
+                new { parts = new[] { new { text =
+                    $"Does answering this question require up-to-date or real-time information? Question: {msg.Content}" } } }
             }
         };
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var response = await _httpClient.PostAsync(
-            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GeminiApiKey}",
-            new StringContent(json, Encoding.UTF8, "application/json")
+        var classifyResp = await _httpClient.PostAsync(
+            $"{BaseUrl}/{NormalModel}:generateContent?key={GeminiApiKey}",
+            new StringContent(JsonSerializer.Serialize(classifyBody), Encoding.UTF8, "application/json")
         );
 
-        if (!response.IsSuccessStatusCode) return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+        var needsSearch = false;
+        if (classifyResp.IsSuccessStatusCode)
+        {
+          using var classifyDoc = JsonDocument.Parse(await classifyResp.Content.ReadAsStringAsync());
+          var verdict = classifyDoc.RootElement
+              .GetProperty("candidates")[0]
+              .GetProperty("content")
+              .GetProperty("parts")[0]
+              .GetProperty("text")
+              .GetString()?.Trim() ?? "";
 
-        var resultJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(resultJson);
+          needsSearch = verdict.Equals("SEARCH", StringComparison.OrdinalIgnoreCase)
+                     || verdict.StartsWith("SEARCH", StringComparison.OrdinalIgnoreCase);
+          Console.WriteLine($"[Gemini] needsSearch={needsSearch} ({verdict})");
+        }
 
-        var raw = doc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
+        // Step 2: Call the appropriate model based on classification
+        if (needsSearch)
+        {
+          // Grounding enabled — plain text response, no JSON format
+          var body = new
+          {
+            system_instruction = new { parts = new[] { new { text = SystemPromptSearch } } },
+            contents = new[] { new { parts = new[] { new { text = prompt } } } },
+            tools = new[] { new { google_search = new { } } }
+          };
 
-        // Strip markdown code fences if present
-        var clean = raw.Trim().TrimStart('`');
-        if (clean.StartsWith("json")) clean = clean[4..];
-        clean = clean.Trim('`').Trim();
+          var resp = await _httpClient.PostAsync(
+              $"{BaseUrl}/{SearchModel}:generateContent?key={GeminiApiKey}",
+              new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+          );
 
-        using var parsed = JsonDocument.Parse(clean);
-        var answer = parsed.RootElement.GetProperty("answer").GetString() ?? "No response.";
-        var emoji = parsed.RootElement.GetProperty("emoji").GetString() ?? FallbackEmoji;
+          if (!resp.IsSuccessStatusCode)
+          {
+            var err = await resp.Content.ReadAsStringAsync();
+            Console.WriteLine($"[Gemini] {(int)resp.StatusCode} Error: {err}");
+            return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+          }
 
-        return (answer, emoji);
+          using var searchDoc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+          var raw = searchDoc.RootElement
+              .GetProperty("candidates")[0]
+              .GetProperty("content")
+              .GetProperty("parts")[0]
+              .GetProperty("text")
+              .GetString() ?? "";
+
+          // Use fixed emoji to indicate a search was performed
+          var searchAnswer = raw.Trim();
+          if (searchAnswer.Length > 1900) searchAnswer = searchAnswer[..1900] + "…";
+          return (searchAnswer, "🔍");
+        }
+        else
+        {
+          // No grounding — JSON response with AI-chosen emoji
+          var body = new
+          {
+            system_instruction = new { parts = new[] { new { text = SystemPromptJson } } },
+            contents = new[] { new { parts = new[] { new { text = prompt } } } }
+          };
+
+          var resp = await _httpClient.PostAsync(
+              $"{BaseUrl}/{NormalModel}:generateContent?key={GeminiApiKey}",
+              new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+          );
+
+          if (!resp.IsSuccessStatusCode)
+          {
+            var err = await resp.Content.ReadAsStringAsync();
+            Console.WriteLine($"[Gemini] {(int)resp.StatusCode} Error: {err}");
+            return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+          }
+
+          using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+          var raw = doc.RootElement
+              .GetProperty("candidates")[0]
+              .GetProperty("content")
+              .GetProperty("parts")[0]
+              .GetProperty("text")
+              .GetString() ?? "";
+
+          // Strip markdown code fences if present
+          var clean = raw.Trim().TrimStart('`');
+          if (clean.StartsWith("json")) clean = clean[4..];
+          clean = clean.Trim('`').Trim();
+
+          using var parsed = JsonDocument.Parse(clean);
+          var answer = parsed.RootElement.GetProperty("answer").GetString() ?? "No response.";
+          var emoji = parsed.RootElement.GetProperty("emoji").GetString() ?? FallbackEmoji;
+          return (answer, emoji);
+        }
       }
       catch (Exception ex)
       {
@@ -437,6 +523,7 @@ namespace Vita3KBot.Services
       if (userMessage.Author is not SocketGuildUser guildUser) return;
       await MonitorImageSpam(userMessage, guildUser);
       await MonitorPiracy(userMessage, guildUser);
+      if (message.Channel.Id != 577624167541637158 && !RolesUtils.IsWhitelisted(guildUser)) return; // Only monitor mentions in #bot-spam
       await MonitorMentions(userMessage, guildUser);
     }
 

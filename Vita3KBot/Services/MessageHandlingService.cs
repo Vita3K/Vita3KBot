@@ -128,7 +128,7 @@ namespace Vita3KBot.Services
               "🛒 [PlayStation Store](https://store.playstation.com) and other official retailers.\n" +
               "-# ⓘ We do not condone/support piracy, but what you're looking for might actually be right [here](<https://youtu.be/dQw4w9WgXcQ>).")
           .WithColor(Color.Orange)
-          .WithTimestamp(DateTimeOffset.Now)
+          .WithFooter("⚠️ Please note that since we use AI-based detection, there may be errors. We appreciate your understanding.")
           .Build();
 
       await msg.Channel.SendMessageAsync(embed: embed);
@@ -348,7 +348,7 @@ namespace Vita3KBot.Services
           },
           contents = new[] {
                 new { parts = new[] { new { text =
-                    $"Does answering this question require up-to-date or real-time information? Question: {msg.Content}" } } }
+                    $"Does answering this question require up-to-date or real-time or technical information? Question: {msg.Content}" } } }
             }
         };
 
@@ -376,7 +376,6 @@ namespace Vita3KBot.Services
         // Step 2: Call the appropriate model based on classification
         if (needsSearch)
         {
-          // Grounding enabled — plain text response, no JSON format
           var body = new
           {
             system_instruction = new { parts = new[] { new { text = SystemPromptSearch } } },
@@ -391,27 +390,29 @@ namespace Vita3KBot.Services
 
           if (!resp.IsSuccessStatusCode)
           {
+            var statusCode = (int)resp.StatusCode;
             var err = await resp.Content.ReadAsStringAsync();
-            Console.WriteLine($"[Gemini] {(int)resp.StatusCode} Error: {err}");
-            return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+            Console.WriteLine($"[Gemini] Search model {statusCode} (grounding limit?), falling back: {err}");
+            needsSearch = false;
           }
+          else
+          {
+            using var searchDoc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            var raw = searchDoc.RootElement
+                .GetProperty("candidates")[0]
+                .GetProperty("content")
+                .GetProperty("parts")[0]
+                .GetProperty("text")
+                .GetString() ?? "";
 
-          using var searchDoc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-          var raw = searchDoc.RootElement
-              .GetProperty("candidates")[0]
-              .GetProperty("content")
-              .GetProperty("parts")[0]
-              .GetProperty("text")
-              .GetString() ?? "";
-
-          // Use fixed emoji to indicate a search was performed
-          var searchAnswer = raw.Trim();
-          if (searchAnswer.Length > 1900) searchAnswer = searchAnswer[..1900] + "…";
-          return (searchAnswer, "🔍");
+            var searchAnswer = raw.Trim();
+            if (searchAnswer.Length > 1900) searchAnswer = searchAnswer[..1900] + "…";
+            return (searchAnswer, "🔍");
+          }
         }
-        else
+
+        if (!needsSearch)
         {
-          // No grounding — JSON response with AI-chosen emoji
           var body = new
           {
             system_instruction = new { parts = new[] { new { text = SystemPromptJson } } },
@@ -438,7 +439,6 @@ namespace Vita3KBot.Services
               .GetProperty("text")
               .GetString() ?? "";
 
-          // Strip markdown code fences if present
           var clean = raw.Trim().TrimStart('`');
           if (clean.StartsWith("json")) clean = clean[4..];
           clean = clean.Trim('`').Trim();
@@ -448,6 +448,8 @@ namespace Vita3KBot.Services
           var emoji = parsed.RootElement.GetProperty("emoji").GetString() ?? FallbackEmoji;
           return (answer, emoji);
         }
+
+        return ("No response.", FallbackEmoji);
       }
       catch (Exception ex)
       {

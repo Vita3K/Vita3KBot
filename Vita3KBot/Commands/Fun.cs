@@ -54,7 +54,7 @@ namespace Vita3KBot.Commands {
         },
         contents = new[] {
             new { parts = new[] { new { text =
-                $"Does answering this question require up-to-date or real-time information? Question: {question}" } } }
+                $"Does answering this question require up-to-date or real-time or technical information? Question: {question}" } } }
         }
       };
 

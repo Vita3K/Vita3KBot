@@ -1,11 +1,12 @@
 using Discord;
 using Discord.Commands;
-using Discord.WebSocket;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using Vita3KBot.Commands;
 
 namespace Vita3KBot.Services
 {
@@ -49,6 +50,13 @@ namespace Vita3KBot.Services
                 // Show typing indicator while the command is processing
                 await context.Channel.TriggerTypingAsync();
                 await _commands.ExecuteAsync(context, prefixStart, _services);
+            }
+            // Execute the update only when the first word is in title ID format
+            var firstWord = userMessage.Content.Split(' ', 2)[0].ToUpper();
+            if (CompatUtils.IsValidTitleId(firstWord)) {
+              var context = new SocketCommandContext(_client, userMessage);
+              await context.Channel.TriggerTypingAsync();
+              await _commands.ExecuteAsync(context, "update " + userMessage.Content, _services);
             }
         }
 

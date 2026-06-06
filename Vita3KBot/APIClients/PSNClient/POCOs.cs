@@ -100,7 +100,7 @@ namespace PSN.POCOs
     public class Image {
         [XmlAttribute(AttributeName="size")]
         public long Size { get; set; }
-        
+
         [XmlText]
         public string Text { get; set; }
     }

@@ -36,6 +36,10 @@ namespace Vita3KBot.Services
         "rif", "pirate"
     ];
 
+    private record PiracyVerdict(bool IsPiracy, double Confidence, string Reason);
+
+    private const double AutoActionThreshold = 0.90;
+
     private static async Task MonitorPiracy(SocketUserMessage msg, SocketGuildUser guildUser)
     {
       if (guildUser.IsBot || guildUser.IsWebhook) return;
@@ -45,45 +49,64 @@ namespace Vita3KBot.Services
       if (string.IsNullOrWhiteSpace(content)) return;
 
       var lower = content.ToLower();
-
-      // Step 2: Skip AI entirely if no trigger keyword is present (no API cost)
       bool hasTrigger = TriggerKeywords.Any(k => lower.Contains(k));
+      if (!hasTrigger) return;
 
-      bool isPiracy = false;
+      var verdict = await CheckPiracyWithGeminiAsync(content);
+      Console.WriteLine($"[Piracy] is_piracy={verdict.IsPiracy} confidence={verdict.Confidence:F2} reason=\"{verdict.Reason}\" user={guildUser.Username}");
 
-      if (hasTrigger)
+      if (verdict.IsPiracy && verdict.Confidence >= AutoActionThreshold)
       {
-        // Step 3: Use Gemini API for context-aware judgment
-        isPiracy = await CheckPiracyWithGeminiAsync(content);
+        await HandlePiracyViolationAsync(msg, guildUser);
       }
-
-      if (!isPiracy) return;
-
-      await HandlePiracyViolationAsync(msg, guildUser);
     }
 
-    private static async Task<bool> CheckPiracyWithGeminiAsync(string content)
+    private static async Task<PiracyVerdict> CheckPiracyWithGeminiAsync(string content)
     {
       try
       {
-        var prompt = $"""
-                    Determine whether the following Discord message is related to
-                    piracy (illegal downloading, ROM distribution requests, etc.)
-                    of games.
-                    However, if the message is intended to discourage or stop piracy, please answer“No”
+        var prompt = $$"""
+            You are a strict moderator for the Vita3K Discord server.
+            Vita3K is a LEGAL open-source PS Vita emulator. Emulation itself is legal and on-topic.
 
-                    Message: "{content}"
+            Classify the message as PIRACY only if it clearly does one of these:
+            - requests, offers, or links illegally obtained game files (ROM, ISO, .pkg, decrypted dumps)
+            - asks where to download commercial games for free
+            - shares/requests license files (.rif, work.bin, act.dat) for games the user does not own
 
-                    Reply with YES or NO only.
-                    - Answer YES only if the message is clearly and explicitly about piracy.
-                    - Answer NO if there is any doubt.
-                    """;
+            It is NOT piracy if it is any of:
+            - buying games from official stores, or dumping/backing up games the user legally owns
+            - general questions about the emulator, official firmware, controllers, performance
+            - merely using the words "game" / "download" / "free" / "link" in a legal context
+            - statements that discourage or condemn piracy
+            - jokes, vague, or ambiguous messages
+
+            Respond ONLY with JSON, no markdown:
+            {"is_piracy": true|false, "confidence": 0.0-1.0, "reason": "short reason"}
+
+            Examples:
+            "where can I download Persona 4 for free?" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking to download a commercial game for free"}
+            "how do I dump my own cartridge?" -> {"is_piracy": false, "confidence": 1.00, "reason": "dumping legally owned game"}
+            "this game runs great!" -> {"is_piracy": false, "confidence": 1.00, "reason": "general comment"}
+            "How to download attack on titan 2 pls help me" -> {"is_piracy": true, "confidence": 0.90, "reason": "asking to download a commercial game from online"}
+            "I need a file .bin / .rif or zRIF key I've reached this point and I can't go any further. I've done everything, but this is what's missing. I would be grateful if anyone could help me in any way." -> {"is_piracy": true, "confidence": 1.00, "reason": "Because they appear to lack technical knowledge, and demanding a license constitutes piracy"}
+            "Where can I download the God of War ROMs?" -> {"is_piracy": true, "confidence": 0.95, "reason": "asking to download illegally obtained game files"}
+            "where do i download ps vita games" -> {"is_piracy": false, "confidence": 0.95, "reason": "asking to download illegally obtained game files"}
+            "Please give me link doenload sao hollow realization support vita3k" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking for illegal game downloads"}
+            "question, how do i get games" -> {"is_piracy": false, "confidence": 0.5, "reason": "maybe user is asking about legal ways to obtain games"}
+            "How can I find the license" -> {"is_piracy": true, "confidence": 0.95, "reason": "asking for illegal license files"}
+            "Free read only memory download dot seven zip" -> {"is_piracy": false, "confidence": 0.90, "reason": "not meaningful comment"}
+            "Rom" -> {"is_piracy": false, "confidence": 0.95, "reason": "Just a word"}
+            "guys, fix the game on emu, i wanna do another run but in glorious hd" -> {"is_piracy": false, "confidence": 0.95, "reason": "general comment about the emulator"}
+            "Hello friends, what exactly does the "NoNpDrm installation failed, deleting data!" error mean and how can it be fixed? I got through trying to install on Windows through a vpk made from a dumped game." -> {"is_piracy": false, "confidence": 0.95, "reason": "asking for help with a technical error, likely related to legally obtained games"}
+
+            Message: "{{content}}"
+            """;
 
         var requestBody = new
         {
-          contents = new[] {
-                        new { parts = new[] { new { text = prompt } } }
-                    }
+          contents = new[] { new { parts = new[] { new { text = prompt } } } },
+          generationConfig = new { temperature = 0.0, responseMimeType = "application/json" }
         };
 
         var json = JsonSerializer.Serialize(requestBody);
@@ -92,26 +115,30 @@ namespace Vita3KBot.Services
             new StringContent(json, Encoding.UTF8, "application/json")
         );
 
-        if (!response.IsSuccessStatusCode) return false;
+        if (!response.IsSuccessStatusCode) return new PiracyVerdict(false, 0, "api error");
 
-        var resultJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(resultJson);
-
-        var answer = doc.RootElement
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var raw = doc.RootElement
             .GetProperty("candidates")[0]
             .GetProperty("content")
             .GetProperty("parts")[0]
             .GetProperty("text")
-            .GetString() ?? "NO";
+            .GetString() ?? "";
 
-        return answer.Trim().ToUpper().StartsWith("YES");
+        var clean = raw.Trim().TrimStart('`');
+        if (clean.StartsWith("json")) clean = clean[4..];
+        clean = clean.Trim('`').Trim();
 
+        using var parsed = JsonDocument.Parse(clean);
+        var isPiracy = parsed.RootElement.GetProperty("is_piracy").GetBoolean();
+        var confidence = parsed.RootElement.TryGetProperty("confidence", out var c) ? c.GetDouble() : 0;
+        var reason = parsed.RootElement.TryGetProperty("reason", out var r) ? r.GetString() ?? "" : "";
+        return new PiracyVerdict(isPiracy, confidence, reason);
       }
       catch (Exception ex)
       {
-        // Silently fail — do not punish users on API errors
         Console.WriteLine($"Gemini API error: {ex.Message}");
-        return false;
+        return new PiracyVerdict(false, 0, "exception");
       }
     }
 

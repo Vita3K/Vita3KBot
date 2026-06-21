@@ -486,6 +486,171 @@ namespace Vita3KBot.Services
     }
 
     // ========================
+    // Log File Analysis
+    // ========================
+
+    private const long MaxLogBytes = 2 * 1024 * 1024; // 2 MB
+    private const int MaxLogCharsForAI = 12000;
+
+    private static readonly string[] KnownLogFileNames = { "log.txt", "vita3k.log" };
+
+    private static bool LooksLikeLogAttachment(IAttachment a) {
+      var name = a.Filename.ToLowerInvariant();
+      if (KnownLogFileNames.Contains(name)) return true;
+      var ext = System.IO.Path.GetExtension(name);
+      return ext is ".log" or ".txt";
+    }
+
+    // Cheap heuristic so we don't waste an AI call on random text files.
+    private static bool IsVita3KLog(string content) {
+      if (string.IsNullOrWhiteSpace(content)) return false;
+      var head = content.Length > 4000 ? content[..4000] : content;
+      return head.Contains("Vita3K", StringComparison.OrdinalIgnoreCase)
+          || head.Contains("|I|")
+          || head.Contains("|E|")
+          || head.Contains("|C|");
+    }
+
+    private static async Task MonitorLogFiles(SocketUserMessage msg) {
+      if (msg.Author.IsBot || msg.Author.IsWebhook) return;
+      if (msg.Attachments.Count == 0) return;
+
+      var logAttachment = msg.Attachments
+          .FirstOrDefault(a => LooksLikeLogAttachment(a) && a.Size <= MaxLogBytes);
+      if (logAttachment == null) return;
+
+      string logContent;
+      try
+      {
+        logContent = await _httpClient.GetStringAsync(logAttachment.Url);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"[LogAnalysis] Failed to download {logAttachment.Filename}: {ex.Message}");
+        return;
+      }
+
+      // Skip random .txt files that aren't actually Vita3K logs.
+      if (!IsVita3KLog(logContent)) return;
+
+      await msg.Channel.TriggerTypingAsync();
+
+      var (summary, problems) = ExtractLogHighlights(logContent);
+      var diagnosis = await DiagnoseLogWithGeminiAsync(summary, problems);
+
+      var embed = new EmbedBuilder()
+          .WithTitle("🔍 Log analysis")
+          .WithDescription(diagnosis)
+          .WithColor(problems.Count > 0 ? Color.Orange : Color.Green)
+          .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • ⚠️ AI-based, may be inaccurate")
+          .Build();
+
+      await msg.ReplyAsync(embed: embed);
+    }
+
+    // Pulls the parts of the log worth reading: the header (build version + system/GPU
+    // info), every warn/error/critical line, and the tail (where a crash leaves its mark).
+    private static (string Summary, List<string> Problems) ExtractLogHighlights(string content)
+    {
+      var lines = content.Replace("\r\n", "\n").Split('\n');
+
+      var header = lines.Take(25);
+
+      var problems = lines
+          .Where(l => l.Contains("|E|")
+                   || l.Contains("|C|"))
+          .ToList();
+
+      var tail = lines.Skip(Math.Max(0, lines.Length - 30));
+
+      var sb = new StringBuilder();
+      sb.AppendLine("=== HEADER ===");
+      foreach (var l in header) sb.AppendLine(l);
+      sb.AppendLine();
+      sb.AppendLine($"=== WARN/ERROR/CRITICAL LINES ({problems.Count}) ===");
+      foreach (var l in problems.Take(80)) sb.AppendLine(l);
+      sb.AppendLine();
+      sb.AppendLine("=== TAIL ===");
+      foreach (var l in tail) sb.AppendLine(l);
+
+      var summary = sb.ToString();
+      if (summary.Length > MaxLogCharsForAI) summary = summary[..MaxLogCharsForAI];
+      return (summary, problems);
+    }
+
+    private static async Task<string> DiagnoseLogWithGeminiAsync(string logSummary, List<string> problems)
+    {
+      const string Model = "gemini-3.1-flash-lite";
+      const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+
+      const string SystemPrompt = """
+        You are a support assistant for Vita3K, an open-source PlayStation Vita emulator for PC.
+        You are given the important parts of a user's Vita3K log file: the header (which usually
+        contains the build version and CPU/GPU/graphics-backend info), the warning/error/critical
+        lines, and the tail of the log.
+
+        First, If details about the runtime environment are provided, please determine whether
+        it is suitable for running Vita3K (i.e., whether it meets the minimum requirements).
+        For example, please display a warning regarding Mali GPUs or CPUs and GPUs
+        that are too old (manufactured in 2015 or earlier).
+
+        Secondly, identify the single most likely problem and give a short, actionable fix.
+        Common causes include: missing or incorrect firmware (PUP) so os0: modules fail to load,
+        a missing fonts package, outdated GPU drivers, the wrong graphics backend (Vulkan vs OpenGL),
+        an outdated Vita3K build, or a game that simply does not work yet.
+
+        Rules:
+        - Be concise: at most 6 short bullet points, or 4 short sentences.
+        - If the log looks clean (no real errors), say so in one line.
+        - Never suggest, discuss, or help with piracy, ROM downloads, or where to get games.
+        - Do NOT invent errors that are not present in the provided log.
+        - Answer in English only, regardless of the log's language.
+        """;
+
+      try
+      {
+        var body = new
+        {
+          system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
+          contents = new[] { new { parts = new[] { new { text = logSummary } } } }
+        };
+
+        var resp = await _httpClient.PostAsync(
+            $"{BaseUrl}/{Model}:generateContent?key={GeminiApiKey}",
+            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+        );
+
+        if (!resp.IsSuccessStatusCode)
+        {
+          var err = await resp.Content.ReadAsStringAsync();
+          Console.WriteLine($"[LogAnalysis] Gemini {(int)resp.StatusCode}: {err}");
+          return problems.Count > 0
+              ? $"I spotted {problems.Count} warning/error line(s), but the analyzer is napping right now 😴 — a human can take a look."
+              : "Couldn't analyze the log right now — the analyzer is napping 😴.";
+        }
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var raw = doc.RootElement
+            .GetProperty("candidates")[0]
+            .GetProperty("content")
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        var answer = raw.Trim();
+        if (string.IsNullOrEmpty(answer)) answer = "No clear issues stood out in the log.";
+        if (answer.Length > 4000) answer = answer[..4000] + "…"; // embed description cap is 4096
+        return answer;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"[LogAnalysis] error: {ex.Message}");
+        return "Something went wrong while analyzing the log 🤒.";
+      }
+    }
+
+
+    // ========================
     // Build & Channel Monitors
     // ========================
 
@@ -548,6 +713,7 @@ namespace Vita3KBot.Services
       if (message is not SocketUserMessage userMessage) return;
       await MonitorNewBuilds(userMessage);
       await MonitorMediaMessages(userMessage);
+      await MonitorLogFiles(userMessage);
 
       if (userMessage.Author is not SocketGuildUser guildUser) return;
       await MonitorImageSpam(userMessage, guildUser);

@@ -318,7 +318,7 @@ namespace Vita3KBot.Services
 
     private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(SocketUserMessage msg, string askerName) {
       const string FallbackEmoji = "👀";
-      const string NormalModel = "gemini-3.1-flash-lite";
+      const string NormalModel = "gemini-3.5-flash";
       const string SearchModel = "gemini-2.5-flash";
       const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -580,7 +580,7 @@ namespace Vita3KBot.Services
 
     private static async Task<string> DiagnoseLogWithGeminiAsync(string logSummary, List<string> problems)
     {
-      const string Model = "gemini-3.1-flash-lite";
+      const string Model = "gemini-3.5-flash";
       const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
       const string SystemPrompt = """

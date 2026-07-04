@@ -72,7 +72,7 @@ namespace Vita3KBot.Services
             Classify the message as PIRACY only if it clearly does one of these:
             - requests, offers, or links illegally obtained game files (ROM, ISO, .pkg, decrypted dumps)
             - asks where to download commercial games for free
-            - shares/requests license files (.rif, work.bin, act.dat) for games the user does not own
+            - shares/requests license files (.rif, work.bin, zrif) for games the user does not own. Requests for a license alone are always illegal
 
             It is NOT piracy if it is any of:
             - buying games from official stores, or dumping/backing up games the user legally owns
@@ -99,6 +99,11 @@ namespace Vita3KBot.Services
             "Rom" -> {"is_piracy": false, "confidence": 0.95, "reason": "Just a word"}
             "guys, fix the game on emu, i wanna do another run but in glorious hd" -> {"is_piracy": false, "confidence": 0.95, "reason": "general comment about the emulator"}
             "Hello friends, what exactly does the "NoNpDrm installation failed, deleting data!" error mean and how can it be fixed? I got through trying to install on Windows through a vpk made from a dumped game." -> {"is_piracy": false, "confidence": 0.95, "reason": "asking for help with a technical error, likely related to legally obtained games"}
+            "Bruh SOMEONE PLS DUMP EVERY FUCKING GAME AND DLC AND SEARCH FOR THE MADOKA ONES FOR THE LOVE OF GOD" -> {"is_piracy": false, "confidence": 0.9, "reason": "They are not requesting the game itself, but rather what appears to be a request regarding game saves"}
+            "Cringegame.iso 200% full multilanguage 1 link infinite money hack original region free" -> {"is_piracy": false, "confidence": 1.00, "reason": "A meaningless list of pirate-related phrases"}
+            "Guys I need your help to download mortal Kombat 9" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking to download a commercial game for free"}
+            "Who can DM me the stuff to download mortal Kombat 9" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking to download a commercial game for free"}
+            "Guys when i install a pkg file game it asks for license" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking for an license is illegal"}
 
             Message: "{{content}}"
             """;
@@ -158,7 +163,7 @@ namespace Vita3KBot.Services
           .WithFooter("⚠️ Please note that since we use AI-based detection, there may be errors. We appreciate your understanding.")
           .Build();
 
-      await msg.Channel.SendMessageAsync(embed: embed);
+      await msg.ReplyAsync(embed: embed, allowedMentions: AllowedMentions.None); // Due to the AI's low accuracy, no notification will be sent
     }
 
     // ========================

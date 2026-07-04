@@ -723,7 +723,7 @@ namespace Vita3KBot.Services
       if (userMessage.Author is not SocketGuildUser guildUser) return;
       await MonitorImageSpam(userMessage, guildUser);
       await MonitorPiracy(userMessage, guildUser);
-      if (message.Channel.Id != 577624167541637158 && !RolesUtils.IsWhitelisted(guildUser)) return; // Only monitor mentions in #bot-spam
+      if (message.Channel.Id != 577624167541637158 && (message.Channel as SocketTextChannel)?.CategoryId != 881557494483271701 && !RolesUtils.IsWhitelisted(guildUser)) return; // Only monitor mentions in #bot-spam or the off-topic category
       await MonitorMentions(userMessage, guildUser);
     }
 

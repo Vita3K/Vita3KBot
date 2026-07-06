@@ -10,23 +10,48 @@ namespace Vita3KBot.Commands
 
   // ── Prefix command ───────────────────────────────────────────
 
-    [DC.Group("latest")]
-    public class BuildsPrefix : DC.ModuleBase<DC.SocketCommandContext> {
-      [DC.Command, DC.Name("latest")]
-      [DC.Summary("Provides a link to Vita3K's current latest build.")]
-      [PrefixRequireRoleOrChannel]
-      private async Task GetBuild()
-          => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
-    }
+  [DC.Group("latest")]
+  public class BuildsPrefix : DC.ModuleBase<DC.SocketCommandContext>
+  {
+    [DC.Command, DC.Name("latest")]
+    [DC.Summary("Provides a link to Vita3K's current latest build.")]
+    [PrefixRequireRoleOrChannel]
+    private async Task GetBuild()
+        => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
+  }
 
-    // ── Slash command ────────────────────────────────────────────
+  [DC.Group("build")]
+  public class BuildNumberPrefix : DC.ModuleBase<DC.SocketCommandContext>
+  {
+    [DC.Command, DC.Name("build")]
+    [DC.Summary("Provides a link to a specific Vita3K build by its build number.")]
+    [PrefixRequireRoleOrChannel]
+    private async Task GetBuild([DC.Summary("Build number to fetch")] string buildNumber)
+        => await ReplyAsync(embed: await GithubClient.GetBuildByNumber(buildNumber));
+  }
 
-    public class BuildsSlash : InteractionModuleBase<SocketInteractionContext> {
-      [SlashCommand("latest", "Provides a link to Vita3K's current latest build.")]
-      [SlashRequireRoleOrChannel]
-        private async Task GetBuild() {
-            await DeferAsync();
-            await FollowupAsync(embed: await GithubClient.GetLatestBuild());
-        }
+  // ── Slash command ────────────────────────────────────────────
+
+  public class BuildsSlash : InteractionModuleBase<SocketInteractionContext>
+  {
+    [SlashCommand("latest", "Provides a link to Vita3K's current latest build.")]
+    [SlashRequireRoleOrChannel]
+    private async Task GetBuild()
+    {
+      await DeferAsync();
+      await FollowupAsync(embed: await GithubClient.GetLatestBuild());
     }
+  }
+
+  public class BuildNumberSlash : InteractionModuleBase<SocketInteractionContext>
+  {
+    [SlashCommand("build", "Provides a link to a specific Vita3K build by its build number.")]
+    [SlashRequireRoleOrChannel]
+    private async Task GetBuild(
+          [Discord.Interactions.Summary("build_number", "Build number to fetch")] string buildNumber)
+    {
+      await DeferAsync();
+      await FollowupAsync(embed: await GithubClient.GetBuildByNumber(buildNumber));
+    }
+  }
 }

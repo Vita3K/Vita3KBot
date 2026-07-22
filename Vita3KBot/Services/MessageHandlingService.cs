@@ -116,7 +116,7 @@ namespace Vita3KBot.Services
 
         var json = JsonSerializer.Serialize(requestBody);
         var response = await _httpClient.PostAsync(
-            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GeminiApiKey}",
+            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GeminiApiKey}",
             new StringContent(json, Encoding.UTF8, "application/json")
         );
 
@@ -323,7 +323,7 @@ namespace Vita3KBot.Services
 
     private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(SocketUserMessage msg, string askerName) {
       const string FallbackEmoji = "👀";
-      const string NormalModel = "gemini-3.5-flash";
+      const string NormalModel = "gemini-3.6-flash";
       const string SearchModel = "gemini-2.5-flash";
       const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -585,7 +585,7 @@ namespace Vita3KBot.Services
 
     private static async Task<string> DiagnoseLogWithGeminiAsync(string logSummary, List<string> problems)
     {
-      const string Model = "gemini-3.5-flash";
+      const string Model = "gemini-3.6-flash";
       const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
       const string SystemPrompt = """

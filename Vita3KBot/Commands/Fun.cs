@@ -30,7 +30,7 @@ namespace Vita3KBot.Commands {
       var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY")
           ?? throw new InvalidOperationException("GEMINI_API_KEY is not set.");
 
-      const string NormalModel = "gemini-3.5-flash";
+      const string NormalModel = "gemini-3.6-flash";
       const string SearchModel = "gemini-2.5-flash";
       const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 

@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Vita3KBot.Commands.Attributes;
+using APIClients;
 using DC = Discord.Commands;
 
 namespace Vita3KBot.Commands {
@@ -29,10 +30,6 @@ namespace Vita3KBot.Commands {
     {
       var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY")
           ?? throw new InvalidOperationException("GEMINI_API_KEY is not set.");
-
-      const string NormalModel = "gemini-3.6-flash";
-      const string SearchModel = "gemini-2.5-flash";
-      const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
       const string SystemPrompt = """
         You are a helpful assistant in the Vita3K Discord server.
@@ -59,7 +56,7 @@ namespace Vita3KBot.Commands {
       };
 
       var classifyJson = JsonSerializer.Serialize(classifyBody);
-      var classifyUrl = $"{BaseUrl}/{NormalModel}:generateContent?key={apiKey}";
+      var classifyUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={apiKey}";
       var classifyResp = await _httpClient.PostAsync(classifyUrl, new StringContent(classifyJson, Encoding.UTF8, "application/json"));
 
       var needsSearch = false;
@@ -91,7 +88,7 @@ namespace Vita3KBot.Commands {
           tools = new[] { new { google_search = new { } } }
         };
         answerJson = JsonSerializer.Serialize(body);
-        answerUrl = $"{BaseUrl}/{SearchModel}:generateContent?key={apiKey}";
+        answerUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.FlashSearch}:generateContent?key={apiKey}";
       }
       else
       {
@@ -101,7 +98,7 @@ namespace Vita3KBot.Commands {
           contents = new[] { new { parts = new[] { new { text = question } } } }
         };
         answerJson = JsonSerializer.Serialize(body);
-        answerUrl = $"{BaseUrl}/{NormalModel}:generateContent?key={apiKey}";
+        answerUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={apiKey}";
       }
 
       var response = await _httpClient.PostAsync(answerUrl, new StringContent(answerJson, Encoding.UTF8, "application/json"));

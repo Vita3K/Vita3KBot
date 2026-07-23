@@ -116,7 +116,7 @@ namespace Vita3KBot.Services
 
         var json = JsonSerializer.Serialize(requestBody);
         var response = await _httpClient.PostAsync(
-            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GeminiApiKey}",
+            $"{GeminiModels.BaseUrl}/{GeminiModels.FlashLite}:generateContent?key={GeminiApiKey}",
             new StringContent(json, Encoding.UTF8, "application/json")
         );
 
@@ -323,9 +323,6 @@ namespace Vita3KBot.Services
 
     private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(SocketUserMessage msg, string askerName) {
       const string FallbackEmoji = "👀";
-      const string NormalModel = "gemini-3.6-flash";
-      const string SearchModel = "gemini-2.5-flash";
-      const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
       const string SystemPromptJson = """
         You are in the Vita3K Discord server.
@@ -385,7 +382,7 @@ namespace Vita3KBot.Services
         };
 
         var classifyResp = await _httpClient.PostAsync(
-            $"{BaseUrl}/{NormalModel}:generateContent?key={GeminiApiKey}",
+            $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
             new StringContent(JsonSerializer.Serialize(classifyBody), Encoding.UTF8, "application/json")
         );
 
@@ -416,7 +413,7 @@ namespace Vita3KBot.Services
           };
 
           var resp = await _httpClient.PostAsync(
-              $"{BaseUrl}/{SearchModel}:generateContent?key={GeminiApiKey}",
+              $"{GeminiModels.BaseUrl}/{GeminiModels.FlashSearch}:generateContent?key={GeminiApiKey}",
               new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
           );
 
@@ -452,7 +449,7 @@ namespace Vita3KBot.Services
           };
 
           var resp = await _httpClient.PostAsync(
-              $"{BaseUrl}/{NormalModel}:generateContent?key={GeminiApiKey}",
+              $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
               new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
           );
 
@@ -585,9 +582,6 @@ namespace Vita3KBot.Services
 
     private static async Task<string> DiagnoseLogWithGeminiAsync(string logSummary, List<string> problems)
     {
-      const string Model = "gemini-3.6-flash";
-      const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
-
       const string SystemPrompt = """
         You are a support assistant for Vita3K, an open-source PlayStation Vita emulator for PC.
         You are given the important parts of a user's Vita3K log file: the header (which usually
@@ -621,7 +615,7 @@ namespace Vita3KBot.Services
         };
 
         var resp = await _httpClient.PostAsync(
-            $"{BaseUrl}/{Model}:generateContent?key={GeminiApiKey}",
+            $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
             new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
         );
 

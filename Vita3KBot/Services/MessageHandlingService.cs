@@ -33,7 +33,9 @@ namespace Vita3KBot.Services
         "license", "bin",
         "rom", "iso",
         "link", "free",
-        "rif", "pirate"
+        "rif", "pirate",
+        "file", "share",
+        "send", "give"
     ];
 
     private record PiracyVerdict(bool IsPiracy, double Confidence, string Reason);

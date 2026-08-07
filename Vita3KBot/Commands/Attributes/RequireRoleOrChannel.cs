@@ -6,6 +6,8 @@ using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 
+using Vita3KBot.Utils;
+
 using DC = Discord.Commands;
 using DI = Discord.Interactions;
 
@@ -27,7 +29,7 @@ namespace Vita3KBot.Commands.Attributes
       if (context.User is SocketGuildUser)
       {
         // Allow if the user has a whitelisted role
-        if (RolesUtils.IsWhitelisted(context, context.Guild as SocketGuild))
+        if (RolesUtils.IsWhitelisted(context))
         {
           return DC.PreconditionResult.FromSuccess();
         }

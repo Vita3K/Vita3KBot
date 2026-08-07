@@ -4,16 +4,18 @@ using System.Threading.Tasks;
 using Discord.Commands;
 using Discord.WebSocket;
 
+using Vita3KBot.Utils;
+
 namespace Vita3KBot.Commands.Attributes
 {
   [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-  public class RequireWhitelistedRole : PreconditionAttribute
+  public class RequireWhitelistedRoleAttribute : PreconditionAttribute
   {
     public override Task<PreconditionResult> CheckPermissionsAsync(ICommandContext context, CommandInfo command, IServiceProvider services)
     {
-      if (context.User is SocketGuildUser guildUser)
+      if (context.User is SocketGuildUser)
       {
-        if (RolesUtils.IsWhitelisted(context, context.Guild as SocketGuild))
+        if (RolesUtils.IsWhitelisted(context))
         {
           return Task.FromResult(PreconditionResult.FromSuccess());
         }

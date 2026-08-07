@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Discord.Commands;
 using Discord.WebSocket;
 
+using Vita3KBot.Utils;
+
 namespace Vita3KBot.Commands.Attributes
 {
   [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
@@ -13,7 +15,7 @@ namespace Vita3KBot.Commands.Attributes
     {
       if (context.User is SocketGuildUser guildUser)
       {
-        if (RolesUtils.IsModerator(context, context.Guild as SocketGuild))
+        if (RolesUtils.IsModerator(context))
         {
           return Task.FromResult(PreconditionResult.FromSuccess());
         }

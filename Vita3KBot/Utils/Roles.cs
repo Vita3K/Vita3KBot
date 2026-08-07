@@ -3,21 +3,19 @@ using System.Linq;
 using Discord.Commands;
 using Discord.WebSocket;
 
-namespace Vita3KBot
+namespace Vita3KBot.Utils
 {
   internal static class RolesUtils
   {
-    private static readonly string[] WhitelistedRoles = { "admin", "developer", "contributor", "moderator", "tester" };
-    private static readonly string[] ModeratorRoles = { "admin", "developer", "moderator" };
+    private static readonly string[] WhitelistedRoles = ["admin", "developer", "contributor", "moderator", "tester"];
+    private static readonly string[] ModeratorRoles = ["admin", "developer", "moderator"];
 
-    public static bool IsWhitelisted(ICommandContext ctx, SocketGuild guild)
+    public static bool IsWhitelisted(ICommandContext ctx)
     {
-      if (!(ctx.User is SocketGuildUser))
+      if (ctx.User is not SocketGuildUser gUser)
       {
         return false;
       }
-
-      var gUser = ctx.User as SocketGuildUser;
 
       if (gUser.Roles.Any(role =>
       {
@@ -35,12 +33,10 @@ namespace Vita3KBot
 
     public static bool IsWhitelisted(SocketUser user)
     {
-      if (!(user is SocketGuildUser))
+      if (user is not SocketGuildUser gUser)
       {
         return false;
       }
-
-      var gUser = user as SocketGuildUser;
 
       if (gUser.Roles.Any(role =>
       {
@@ -56,14 +52,12 @@ namespace Vita3KBot
       return false;
     }
 
-    public static bool IsModerator(ICommandContext ctx, SocketGuild guild)
+    public static bool IsModerator(ICommandContext ctx)
     {
-      if (!(ctx.User is SocketGuildUser))
+      if (ctx.User is not SocketGuildUser gUser)
       {
         return false;
       }
-
-      var gUser = ctx.User as SocketGuildUser;
 
       if (gUser.Roles.Any(role =>
       {
@@ -81,12 +75,10 @@ namespace Vita3KBot
 
     public static bool IsModerator(SocketUser user)
     {
-      if (!(user is SocketGuildUser))
+      if (user is not SocketGuildUser gUser)
       {
         return false;
       }
-
-      var gUser = user as SocketGuildUser;
 
       if (gUser.Roles.Any(role =>
       {

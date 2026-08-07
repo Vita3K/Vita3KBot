@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using APIClients;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
@@ -12,6 +11,7 @@ using Discord.WebSocket;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Vita3KBot.APIClients.PSNClient;
 using Vita3KBot.Services;
 
 namespace Vita3KBot
@@ -48,73 +48,78 @@ namespace Vita3KBot
     // Initializes Discord.Net
     private async Task Start()
     {
-      using (var services = ConfigureServices())
+      using var services = ConfigureServices();
+
+      var client = services.GetRequiredService<DiscordSocketClient>();
+      client.Log += LogAsync;
+      services.GetRequiredService<CommandService>().Log += LogAsync;
+
+      // Is this really the best place for this?
+      client.SelectMenuExecuted += HandleSelectMenuExecutedAsync;
+
+      await client.LoginAsync(TokenType.Bot, _token);
+      await client.StartAsync();
+
+      await services.GetRequiredService<CommandHandlingService>().InitializeAsync();
+      services.GetRequiredService<MessageHandlingService>().Initialize();
+
+      await Task.Delay(Timeout.Infinite);
+    }
+
+    // Handles clicks on the title-update select menu, keeping the menu in place
+    // on the original message so it can be reused for subsequent lookups.
+    private static async Task HandleSelectMenuExecutedAsync(SocketMessageComponent interaction)
+    {
+      if (interaction.Data.CustomId != "update_select")
       {
-        var client = services.GetRequiredService<DiscordSocketClient>();
-        client.Log += LogAsync;
-        services.GetRequiredService<CommandService>().Log += LogAsync;
-
-        // Is this really the best place for this?
-        client.SelectMenuExecuted += async (interaction) =>
-        {
-          if (interaction.Data.CustomId == "update_select")
-          {
-            var selectedId = interaction.Data.Values.First();
-            var (embed, _) = PSNClient.GetTitlePatch(selectedId);
-
-            // Preserve the original select menu from the message
-            var originalComponents = interaction.Message.Components;
-            var components = new ComponentBuilder();
-            foreach (var row in originalComponents)
-            {
-              if (row is ActionRowComponent actionRow)
-              {
-                foreach (var component in actionRow.Components)
-                {
-                  if (component is SelectMenuComponent menu)
-                  {
-                    components.WithSelectMenu(menu.CustomId,
-                      menu.Options.Select(o => new SelectMenuOptionBuilder()
-                        .WithLabel(o.Label)
-                        .WithValue(o.Value)
-                        .WithDescription(o.Description)
-                        .WithEmote(o.Emote)
-                        .WithDefault(o.Value == selectedId)
-                      ).ToList(),
-                      menu.Placeholder);
-                  }
-                }
-              }
-            }
-
-            // Update the message in-place so the menu remains and can be reused
-            await interaction.UpdateAsync(props =>
-            {
-              props.Embed = embed;
-              props.Components = components.Build();
-            });
-          }
-        };
-
-        await client.LoginAsync(TokenType.Bot, _token);
-        await client.StartAsync();
-
-        await services.GetRequiredService<CommandHandlingService>().InitializeAsync();
-        services.GetRequiredService<MessageHandlingService>().Initialize();
-
-        await Task.Delay(Timeout.Infinite);
+        return;
       }
+
+      var selectedId = interaction.Data.Values.First();
+      var (embed, _) = PSNClient.GetTitlePatch(selectedId);
+
+      // Preserve the original select menu from the message
+      var originalComponents = interaction.Message.Components;
+      var components = new ComponentBuilder();
+      foreach (var row in originalComponents)
+      {
+        if (row is ActionRowComponent actionRow)
+        {
+          foreach (var component in actionRow.Components)
+          {
+            if (component is SelectMenuComponent menu)
+            {
+              components.WithSelectMenu(menu.CustomId,
+                [.. menu.Options.Select(o => new SelectMenuOptionBuilder()
+                  .WithLabel(o.Label)
+                  .WithValue(o.Value)
+                  .WithDescription(o.Description)
+                  .WithEmote(o.Emote)
+                  .WithDefault(o.Value == selectedId)
+                )],
+                menu.Placeholder);
+            }
+          }
+        }
+      }
+
+      // Update the message in-place so the menu remains and can be reused
+      await interaction.UpdateAsync(props =>
+      {
+        props.Embed = embed;
+        props.Components = components.Build();
+      });
     }
 
     // Called by Discord.Net when it wants to log something.
-    private Task LogAsync(LogMessage log)
+    private static Task LogAsync(LogMessage log)
     {
       Console.WriteLine(log.ToString());
 
       return Task.CompletedTask;
     }
 
-    private ServiceProvider ConfigureServices()
+    private static ServiceProvider ConfigureServices()
     {
       var config = new DiscordSocketConfig
       {

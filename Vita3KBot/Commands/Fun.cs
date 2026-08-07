@@ -13,12 +13,13 @@ using Discord.Interactions;
 using Vita3KBot.Commands.Attributes;
 
 using DC = Discord.Commands;
+using Vita3KUtils = Vita3KBot.Utils.Utils;
 
 namespace Vita3KBot.Commands
 {
   internal static class FunData
   {
-    internal static readonly string[] EightBallReplies = {
+    internal static readonly string[] EightBallReplies = [
       "It is certain.",             "It is decidedly so.",
       "Without a doubt.",           "Yes - definitely.",
       "You may rely on it.",        "As I see it, yes.",
@@ -29,28 +30,31 @@ namespace Vita3KBot.Commands
       "Concentrate and ask again.", "Don't count on it.",
       "My reply is no.",            "My sources say no.",
       "Outlook not so good.",       "Very doubtful."
-    };
+    ];
 
-    internal static readonly string[] TimePeriod = {
+    internal static readonly string[] TimePeriod = [
       "seconds", "minutes", "hours", "days", "months",
       "years",   "decades", "centuries", "millennia"
-    };
+    ];
 
-    internal static readonly string[] RpsHands = { "Rock", "Paper", "Scissors" };
-    internal static readonly string[] RpsEmoji = { "✊", "✋", "✌️" };
+    internal static readonly string[] RpsHands = ["Rock", "Paper", "Scissors"];
+    internal static readonly string[] RpsEmoji = ["✊", "✋", "✌️"];
+
+    // Shared Gemini author icon, referenced by both the prefix and slash question commands
+    internal const string GeminiIconUrl = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/google-gemini.webp";
 
     private static readonly HttpClient _httpClient = new();
 
     internal static string RandomEightBall() =>
-      EightBallReplies[Utils.Random.Next(EightBallReplies.Length)];
+      EightBallReplies[Vita3KUtils.Random.Next(EightBallReplies.Length)];
 
     internal static string RandomWhen() =>
-      $"It will happen in the next {Utils.Random.Next(2, 100)} " +
-      $"{TimePeriod[Utils.Random.Next(TimePeriod.Length)]}.";
+      $"It will happen in the next {Vita3KUtils.Random.Next(2, 100)} " +
+      $"{TimePeriod[Vita3KUtils.Random.Next(TimePeriod.Length)]}.";
 
     internal static (int index, string name, string emoji) RandomRpsHand()
     {
-      int i = Utils.Random.Next(RpsHands.Length);
+      int i = Vita3KUtils.Random.Next(RpsHands.Length);
       return (i, RpsHands[i], RpsEmoji[i]);
     }
 
@@ -80,8 +84,8 @@ namespace Vita3KBot.Commands
 
     internal static string RpsResultMessage(int playerIndex, string invokerMention)
     {
-      var bot = RandomRpsHand();
-      int result = RpsResult(playerIndex, bot.index);
+      var (botIndex, botName, botEmoji) = RandomRpsHand();
+      int result = RpsResult(playerIndex, botIndex);
       string playerEmoji = RpsEmoji[playerIndex];
       string playerName = RpsHands[playerIndex];
       string outcome = result switch
@@ -92,7 +96,7 @@ namespace Vita3KBot.Commands
         _ => ""
       };
       return $"{invokerMention}\n" +
-             $"You: {playerEmoji} **{playerName}** vs Bot: {bot.emoji} **{bot.name}**\n" +
+             $"You: {playerEmoji} **{playerName}** vs Bot: {botEmoji} **{botName}**\n" +
              $"{outcome}";
     }
 
@@ -199,9 +203,11 @@ namespace Vita3KBot.Commands
   {
     [DC.Command, DC.Name("8ball")]
     [DC.Summary("Accurately answers yes/no questions.")]
+#pragma warning disable IDE0060 // kept named so `-help 8ball` shows the parameter correctly
     public async Task Predict(
       [DC.Remainder, DC.Summary("The question you wish to ask.")] string question)
       => await ReplyAsync(FunData.RandomEightBall());
+#pragma warning restore IDE0060
   }
 
   [DC.Group("when")]
@@ -209,9 +215,11 @@ namespace Vita3KBot.Commands
   {
     [DC.Command, DC.Name("when")]
     [DC.Summary("Determines when some event will happen.")]
+#pragma warning disable IDE0060 // kept named so `-help when` shows the parameter correctly
     public async Task Predict(
       [DC.Remainder, DC.Summary("A description of an event to predict.")] string question)
       => await ReplyAsync(FunData.RandomWhen());
+#pragma warning restore IDE0060
   }
 
   [DC.Group("ping")]
@@ -248,7 +256,7 @@ namespace Vita3KBot.Commands
         }
 
         var embed = new EmbedBuilder()
-          .WithAuthor("Gemini", "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/google-gemini.webp")
+          .WithAuthor("Gemini", FunData.GeminiIconUrl)
           .WithDescription(answer)
           .WithFooter(usedSearch ? $"Asked by {Context.User.Username} • 🔍 Used Search" : $"Asked by {Context.User.Username}")
           .WithColor(new Color(0x4285F4))
@@ -280,7 +288,7 @@ namespace Vita3KBot.Commands
   {
     [SlashCommand("8ball", "Accurately answers yes/no questions.")]
     public async Task Predict(
-      [Discord.Interactions.Summary("question", "The question you wish to ask.")] string question)
+      [Discord.Interactions.Summary("question", "The question you wish to ask.")] string _)
     {
       await DeferAsync();
       await FollowupAsync(FunData.RandomEightBall());
@@ -291,7 +299,7 @@ namespace Vita3KBot.Commands
   {
     [SlashCommand("when", "Determines when some event will happen.")]
     public async Task Predict(
-      [Discord.Interactions.Summary("event", "A description of an event to predict.")] string question)
+      [Discord.Interactions.Summary("event", "A description of an event to predict.")] string _)
     {
       await DeferAsync();
       await FollowupAsync(FunData.RandomWhen());

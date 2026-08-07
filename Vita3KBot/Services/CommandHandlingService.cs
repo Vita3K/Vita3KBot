@@ -11,6 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Vita3KBot.Commands;
 
+using static Vita3KBot.Utils.Utils;
+
 namespace Vita3KBot.Services
 {
   public class CommandHandlingService
@@ -84,12 +86,12 @@ namespace Vita3KBot.Services
 
       if (ShowStackTrace && result.Error == CommandError.Exception && result is Discord.Commands.ExecuteResult execution)
       {
-        await context.Channel.SendMessageAsync(Utils.Code(execution.Exception.Message + "\n\n" + execution.Exception.StackTrace));
+        await context.Channel.SendMessageAsync(Code(execution.Exception.Message + "\n\n" + execution.Exception.StackTrace));
       }
       else
       {
         var currentCommand = command.GetValueOrDefault();
-        await context.Channel.SendMessageAsync("Halt! We've hit an error." + Utils.Code(result.ErrorReason));
+        await context.Channel.SendMessageAsync("Halt! We've hit an error." + Code(result.ErrorReason));
         if (result.ErrorReason == "The input text has too few parameters.")
         {
           await context.Channel.SendMessageAsync($"Try `-help {currentCommand.Name}` for the command's usage");
@@ -129,7 +131,7 @@ namespace Vita3KBot.Services
       // Reply with an ephemeral error message visible only to the user
       if (!result.IsSuccess)
       {
-        await interaction.FollowupAsync($"Halt! We've hit an error.{Utils.Code(result.ErrorReason)}", ephemeral: true);
+        await interaction.FollowupAsync($"Halt! We've hit an error.{Code(result.ErrorReason)}", ephemeral: true);
       }
     }
   }

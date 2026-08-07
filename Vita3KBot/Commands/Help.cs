@@ -7,6 +7,8 @@ using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 
+using Vita3KBot.Utils;
+
 using DC = Discord.Commands;
 
 namespace Vita3KBot.Commands
@@ -35,16 +37,16 @@ namespace Vita3KBot.Commands
       }
 
       var match = result.Commands.FirstOrDefault();
-      var whitelisted = RolesUtils.IsWhitelisted(Context, Context.Guild);
-      var moderator = RolesUtils.IsModerator(Context, Context.Guild);
+      var whitelisted = RolesUtils.IsWhitelisted(Context);
+      var moderator = RolesUtils.IsModerator(Context);
       await ReplyAsync(embed: HelpUtils.BuildCommandEmbed(match, whitelisted, moderator).Build());
     }
 
     [DC.Command]
     public async Task Help()
     {
-      var whitelisted = RolesUtils.IsWhitelisted(Context, Context.Guild);
-      var moderator = RolesUtils.IsModerator(Context, Context.Guild);
+      var whitelisted = RolesUtils.IsWhitelisted(Context);
+      var moderator = RolesUtils.IsModerator(Context);
       await ReplyAsync(embed: HelpUtils.BuildListEmbed(_commands.Modules, whitelisted, moderator).Build());
     }
   }

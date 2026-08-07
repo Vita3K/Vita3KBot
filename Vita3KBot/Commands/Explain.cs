@@ -17,7 +17,7 @@ namespace Vita3KBot.Commands
 
   internal static class ExplainUtils
   {
-    internal static readonly DirectoryInfo ExplanationDirectory = new DirectoryInfo("explanations");
+    internal static readonly DirectoryInfo ExplanationDirectory = new("explanations");
 
     internal static Embed BuildListEmbed()
     {

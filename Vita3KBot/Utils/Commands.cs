@@ -23,7 +23,7 @@ namespace Vita3KBot
     {
       if (command.Preconditions.Any(precondition =>
       {
-        return precondition.ToString().Substring(precondition.ToString().Length - (precondition.ToString().Length - precondition.ToString().LastIndexOf(".")) + 1) == "RequireWhitelistedRole";
+        return precondition.ToString().Substring(precondition.ToString().Length - (precondition.ToString().Length - precondition.ToString().LastIndexOf(".")) + 1) == "RequireWhitelistedRoleAttribute";
       }))
       {
         return true;

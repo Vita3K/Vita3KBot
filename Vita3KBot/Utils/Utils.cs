@@ -2,11 +2,13 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace Vita3KBot
+namespace Vita3KBot.Utils
 {
   public static class Utils
   {
-    public static readonly Random Random = new Random();
+    // Used only for non-security randomness (game replies, RPS, etc.), not for anything
+    // security-sensitive, so a cryptographic RNG would be unnecessary overhead here.
+    public static readonly Random Random = new();
 
     // Sends an HTTP Get request. Might not be the best solution.
     public static async Task<string> HttpGet(string address, string parameters = "")
@@ -24,7 +26,7 @@ namespace Vita3KBot
       }
 
       client.Dispose();
-      throw new Exception("Received " + response.StatusCode + " status code from " + address + parameters + ".");
+      throw new HttpRequestException("Received " + response.StatusCode + " status code from " + address + parameters + ".");
     }
 
     // Discord Markdown Code.

@@ -13,9 +13,12 @@ using Discord.WebSocket;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Vita3KBot.APIClients.GithubClient;
+using Vita3KBot.Utils;
+
 namespace Vita3KBot.Services
 {
-  public class MessageHandlingService
+  public class MessageHandlingService(IServiceProvider services)
   {
     // ========================
     // Piracy Detection
@@ -32,6 +35,13 @@ namespace Vita3KBot.Services
     ];
 
     private const double AutoActionThreshold = 0.90;
+
+    // Repeated Gemini JSON response property names, extracted to avoid duplicated literals
+    private const string JsonMimeType = "application/json";
+    private const string CandidatesProperty = "candidates";
+    private const string ContentProperty = "content";
+    private const string PartsProperty = "parts";
+    private const string TextProperty = "text";
 
     // ========================
     // Image Spam Detection
@@ -50,21 +60,14 @@ namespace Vita3KBot.Services
     private const long MaxLogBytes = 2 * 1024 * 1024; // 2 MB
     private const int MaxLogCharsForAI = 12000;
 
-    private static readonly string[] KnownLogFileNames = { "log.txt", "vita3k.log" };
+    private static readonly string[] KnownLogFileNames = ["log.txt", "vita3k.log"];
 
     private static readonly HttpClient _httpClient = new();
     private static readonly string GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? throw new InvalidOperationException("GEMINI_API_KEY environment variable is not set.");
 
-    private readonly DiscordSocketClient _client;
-    private readonly IServiceProvider _services;
+    private readonly DiscordSocketClient _client = services.GetRequiredService<DiscordSocketClient>();
 
-    public MessageHandlingService(IServiceProvider services)
-    {
-      _client = services.GetRequiredService<DiscordSocketClient>();
-      _services = services;
-    }
-
-    private record PiracyVerdict(bool IsPiracy, double Confidence, string Reason);
+    private sealed record PiracyVerdict(bool IsPiracy, double Confidence, string Reason);
 
     // Initializes the Message Handler, subscribes to events, etc.
     public void Initialize()
@@ -188,13 +191,13 @@ namespace Vita3KBot.Services
         var requestBody = new
         {
           contents = new[] { new { parts = new[] { new { text = prompt } } } },
-          generationConfig = new { temperature = 0.0, responseMimeType = "application/json" }
+          generationConfig = new { temperature = 0.0, responseMimeType = JsonMimeType }
         };
 
         var json = JsonSerializer.Serialize(requestBody);
         var response = await _httpClient.PostAsync(
           $"{GeminiModels.BaseUrl}/{GeminiModels.FlashLite}:generateContent?key={GeminiApiKey}",
-          new StringContent(json, Encoding.UTF8, "application/json"));
+          new StringContent(json, Encoding.UTF8, JsonMimeType));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -203,10 +206,10 @@ namespace Vita3KBot.Services
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var raw = doc.RootElement
-          .GetProperty("candidates")[0]
-          .GetProperty("content")
-          .GetProperty("parts")[0]
-          .GetProperty("text")
+          .GetProperty(CandidatesProperty)[0]
+          .GetProperty(ContentProperty)
+          .GetProperty(PartsProperty)[0]
+          .GetProperty(TextProperty)
           .GetString() ?? "";
 
         var clean = raw.Trim().TrimStart('`');
@@ -232,8 +235,6 @@ namespace Vita3KBot.Services
 
     private static async Task HandlePiracyViolationAsync(SocketUserMessage msg, SocketGuildUser guildUser)
     {
-      var userId = guildUser.Id;
-
       // Send warning embed to the channel
       var embed = new EmbedBuilder()
         .WithTitle($"⚠️ Warning - NO piracy")
@@ -249,10 +250,13 @@ namespace Vita3KBot.Services
       await msg.ReplyAsync(embed: embed, allowedMentions: AllowedMentions.None); // Due to the AI's low accuracy, no notification will be sent
     }
 
-    private static string GetImageHash(IAttachment attachment) =>
+    private static string GetImageHash(Attachment attachment) =>
       $"{attachment.Filename}:{attachment.Size}";
 
-    // Periodically removes stale entries from the image post cache
+    // Periodically removes stale entries from the image post cache.
+    // Intentionally loops for the lifetime of the process; there is no cancellation
+    // token because the cleanup should run for as long as the bot itself is running.
+#pragma warning disable S2190
     private static async Task RunCacheCleanupLoop()
     {
       while (true)
@@ -277,6 +281,7 @@ namespace Vita3KBot.Services
         }
       }
     }
+#pragma warning restore S2190
 
     private static async Task MonitorImageSpam(SocketUserMessage msg, SocketGuildUser guildUser)
     {
@@ -308,7 +313,7 @@ namespace Vita3KBot.Services
         }
 
         var key = (guildUser.Id, GetImageHash(attachment));
-        var posts = _imagePostLog.GetOrAdd(key, _ => new List<(ulong, ulong, DateTime)>());
+        var posts = _imagePostLog.GetOrAdd(key, _ => []);
 
         lock (posts)
         {
@@ -324,15 +329,14 @@ namespace Vita3KBot.Services
           }
         }
 
-        await ExecuteImageSpamAction(guildUser, posts.ToList(), msg);
+        await ExecuteImageSpamAction(guildUser, [.. posts]);
         return;
       }
     }
 
     private static async Task ExecuteImageSpamAction(
       SocketGuildUser user,
-      List<(ulong ChannelId, ulong MessageId, DateTime PostedAt)> posts,
-      SocketUserMessage triggerMsg)
+      List<(ulong ChannelId, ulong MessageId, DateTime PostedAt)> posts)
     {
       var guild = user.Guild;
 
@@ -355,7 +359,7 @@ namespace Vita3KBot.Services
       // 2. Kick the user
       try
       {
-        var guildUser = user as IGuildUser ?? guild.GetUser(user.Id);
+        var guildUser = user ?? guild.GetUser(user.Id);
         if (guildUser != null)
         {
           await guildUser.KickAsync($"Image spam: same image posted to {SpamChannelThreshold}+ channels within {SpamWindow.TotalMinutes} minute(s).");
@@ -501,17 +505,17 @@ namespace Vita3KBot.Services
 
         var classifyResp = await _httpClient.PostAsync(
           $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-          new StringContent(JsonSerializer.Serialize(classifyBody), Encoding.UTF8, "application/json"));
+          new StringContent(JsonSerializer.Serialize(classifyBody), Encoding.UTF8, JsonMimeType));
 
         var needsSearch = false;
         if (classifyResp.IsSuccessStatusCode)
         {
           using var classifyDoc = JsonDocument.Parse(await classifyResp.Content.ReadAsStringAsync());
           var verdict = classifyDoc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
+            .GetProperty(CandidatesProperty)[0]
+            .GetProperty(ContentProperty)
+            .GetProperty(PartsProperty)[0]
+            .GetProperty(TextProperty)
             .GetString()?.Trim() ?? "";
 
           needsSearch = verdict.Equals("SEARCH", StringComparison.OrdinalIgnoreCase)
@@ -531,7 +535,7 @@ namespace Vita3KBot.Services
 
           var resp = await _httpClient.PostAsync(
             $"{GeminiModels.BaseUrl}/{GeminiModels.FlashSearch}:generateContent?key={GeminiApiKey}",
-            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
 
           if (!resp.IsSuccessStatusCode)
           {
@@ -544,10 +548,10 @@ namespace Vita3KBot.Services
           {
             using var searchDoc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
             var raw = searchDoc.RootElement
-              .GetProperty("candidates")[0]
-              .GetProperty("content")
-              .GetProperty("parts")[0]
-              .GetProperty("text")
+              .GetProperty(CandidatesProperty)[0]
+              .GetProperty(ContentProperty)
+              .GetProperty(PartsProperty)[0]
+              .GetProperty(TextProperty)
               .GetString() ?? "";
 
             var searchAnswer = raw.Trim();
@@ -570,7 +574,7 @@ namespace Vita3KBot.Services
 
           var resp = await _httpClient.PostAsync(
             $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
 
           if (!resp.IsSuccessStatusCode)
           {
@@ -581,10 +585,10 @@ namespace Vita3KBot.Services
 
           using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
           var raw = doc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
+            .GetProperty(CandidatesProperty)[0]
+            .GetProperty(ContentProperty)
+            .GetProperty(PartsProperty)[0]
+            .GetProperty(TextProperty)
             .GetString() ?? "";
 
           var clean = raw.Trim().TrimStart('`');
@@ -610,7 +614,7 @@ namespace Vita3KBot.Services
       }
     }
 
-    private static bool LooksLikeLogAttachment(IAttachment a)
+    private static bool LooksLikeLogAttachment(Attachment a)
     {
       var name = a.Filename.ToLowerInvariant();
       if (KnownLogFileNames.Contains(name))
@@ -769,7 +773,7 @@ namespace Vita3KBot.Services
 
         var resp = await _httpClient.PostAsync(
           $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-          new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+          new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
 
         if (!resp.IsSuccessStatusCode)
         {
@@ -782,10 +786,10 @@ namespace Vita3KBot.Services
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
         var raw = doc.RootElement
-          .GetProperty("candidates")[0]
-          .GetProperty("content")
-          .GetProperty("parts")[0]
-          .GetProperty("text")
+          .GetProperty(CandidatesProperty)[0]
+          .GetProperty(ContentProperty)
+          .GetProperty(PartsProperty)[0]
+          .GetProperty(TextProperty)
           .GetString() ?? "";
 
         var answer = raw.Trim();

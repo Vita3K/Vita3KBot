@@ -5,12 +5,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-using APIClients;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 using Octokit;
 
+using Vita3KBot.APIClients.PSNClient;
 using Vita3KBot.Commands.Attributes;
 
 using DC = Discord.Commands;

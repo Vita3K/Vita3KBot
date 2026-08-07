@@ -1,4 +1,4 @@
-﻿namespace APIClients
+namespace APIClients
 {
   // Centralizes Gemini model names and endpoint in one place.
   // When a new model is released, only this file needs to be updated

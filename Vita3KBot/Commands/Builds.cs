@@ -1,13 +1,15 @@
+using System.Threading.Tasks;
+
 using APIClients;
 using Discord.Commands;
 using Discord.Interactions;
-using System.Threading.Tasks;
+
 using Vita3KBot.Commands.Attributes;
+
 using DC = Discord.Commands;
 
 namespace Vita3KBot.Commands
 {
-
   // ── Prefix command ───────────────────────────────────────────
 
   [DC.Group("latest")]
@@ -17,7 +19,7 @@ namespace Vita3KBot.Commands
     [DC.Summary("Provides a link to Vita3K's current latest build.")]
     [PrefixRequireRoleOrChannel]
     private async Task GetBuild()
-        => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
+      => await ReplyAsync(embed: await GithubClient.GetLatestBuild());
   }
 
   [DC.Group("build")]
@@ -27,7 +29,7 @@ namespace Vita3KBot.Commands
     [DC.Summary("Provides a link to a specific Vita3K build by its build number.")]
     [PrefixRequireRoleOrChannel]
     private async Task GetBuild([DC.Summary("Build number to fetch")] string buildNumber)
-        => await ReplyAsync(embed: await GithubClient.GetBuildByNumber(buildNumber));
+      => await ReplyAsync(embed: await GithubClient.GetBuildByNumber(buildNumber));
   }
 
   // ── Slash command ────────────────────────────────────────────
@@ -48,7 +50,7 @@ namespace Vita3KBot.Commands
     [SlashCommand("build", "Provides a link to a specific Vita3K build by its build number.")]
     [SlashRequireRoleOrChannel]
     private async Task GetBuild(
-          [Discord.Interactions.Summary("build_number", "Build number to fetch")] string buildNumber)
+      [Discord.Interactions.Summary("build_number", "Build number to fetch")] string buildNumber)
     {
       await DeferAsync();
       await FollowupAsync(embed: await GithubClient.GetBuildByNumber(buildNumber));

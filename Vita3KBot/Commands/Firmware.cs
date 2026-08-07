@@ -1,51 +1,60 @@
 using System.Threading.Tasks;
+
+using APIClients;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
-using APIClients;
-using DC = Discord.Commands;
+
 using Vita3KBot.Commands.Attributes;
 
-namespace Vita3KBot.Commands {
-    internal static class FirmwareData {
-        internal static Embed BuildEmbed() {
-            var fullFW       = PSNClient.GetFullFW();
-            var systemDataFW = PSNClient.GetSystemDataFW();
-            var preinstDataFW = PSNClient.GetPreinstDataFW();
+using DC = Discord.Commands;
+
+namespace Vita3KBot.Commands
+{
+  internal static class FirmwareData
+  {
+    internal static Embed BuildEmbed()
+    {
+      var fullFW = PSNClient.GetFullFW();
+      var systemDataFW = PSNClient.GetSystemDataFW();
+      var preinstDataFW = PSNClient.GetPreinstDataFW();
 
       return new EmbedBuilder()
-                .WithTitle($"The latest firmware version is {PSNClient.GetFWVersion()}")
-                .WithColor(Color.Orange)
-                .WithDescription("Installing the firmware packages in Vita3K allows the emulator to LLE the system modules.")
-                .AddField("License Agreement", "Before downloading the firmware you must read and agree to the license agreement located [here](https://doc.dl.playstation.net/doc/psvita-eula/).")
-                .AddField("Modules Package", $"[Full Firmware Package ({fullFW.Item2}MB)]({fullFW.Item1})", true)
-                .AddField("Fonts Package", $"[Systemdata Firmware Package ({systemDataFW.Item2}MB)]({systemDataFW.Item1})", true)
-                .AddField("Preinst Package", $"[Preinstall Firmware Package ({preinstDataFW.Item2}MB)]({preinstDataFW.Item1})", true)
-                .WithFooter("Module packages have to be installed in Vita3K in order for them to function properly\n" +
-                            "⚠️ Please do not use Firefox, as many users have reported being unable to download files.")
-                .Build();
-        }
+        .WithTitle($"The latest firmware version is {PSNClient.GetFWVersion()}")
+        .WithColor(Color.Orange)
+        .WithDescription("Installing the firmware packages in Vita3K allows the emulator to LLE the system modules.")
+        .AddField("License Agreement", "Before downloading the firmware you must read and agree to the license agreement located [here](https://doc.dl.playstation.net/doc/psvita-eula/).")
+        .AddField("Modules Package", $"[Full Firmware Package ({fullFW.Item2}MB)]({fullFW.Item1})", true)
+        .AddField("Fonts Package", $"[Systemdata Firmware Package ({systemDataFW.Item2}MB)]({systemDataFW.Item1})", true)
+        .AddField("Preinst Package", $"[Preinstall Firmware Package ({preinstDataFW.Item2}MB)]({preinstDataFW.Item1})", true)
+        .WithFooter("Module packages have to be installed in Vita3K in order for them to function properly\n" +
+              "⚠️ Please do not use Firefox, as many users have reported being unable to download files.")
+        .Build();
     }
+  }
 
-    // ── Prefix command ───────────────────────────────────────────
+  // ── Prefix command ───────────────────────────────────────────
 
-    [DC.Group("firmware")]
-    public class FirmwarePrefix : DC.ModuleBase<DC.SocketCommandContext> {
-        [DC.Command, DC.Name("firmware")]
-        [DC.Summary("Gets the latest firmware package for all regions")]
-        [PrefixRequireRoleOrChannel]
-        public async Task Firmware()
-            => await ReplyAsync(embed: FirmwareData.BuildEmbed());
+  [DC.Group("firmware")]
+  public class FirmwarePrefix : DC.ModuleBase<DC.SocketCommandContext>
+  {
+    [DC.Command, DC.Name("firmware")]
+    [DC.Summary("Gets the latest firmware package for all regions")]
+    [PrefixRequireRoleOrChannel]
+    public async Task Firmware()
+      => await ReplyAsync(embed: FirmwareData.BuildEmbed());
+  }
+
+  // ── Slash command ────────────────────────────────────────────
+
+  public class FirmwareSlash : InteractionModuleBase<SocketInteractionContext>
+  {
+    [SlashCommand("firmware", "Gets the latest firmware package for all regions")]
+    [SlashRequireRoleOrChannel]
+    public async Task Firmware()
+    {
+      await DeferAsync();
+      await FollowupAsync(embed: FirmwareData.BuildEmbed());
     }
-
-    // ── Slash command ────────────────────────────────────────────
-
-    public class FirmwareSlash : InteractionModuleBase<SocketInteractionContext> {
-        [SlashCommand("firmware", "Gets the latest firmware package for all regions")]
-        [SlashRequireRoleOrChannel]
-        public async Task Firmware() {
-            await DeferAsync();
-            await FollowupAsync(embed: FirmwareData.BuildEmbed());
-        }
-    }
+  }
 }

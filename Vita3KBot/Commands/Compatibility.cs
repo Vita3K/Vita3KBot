@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -19,14 +20,15 @@ namespace Vita3KBot.Commands
 {
   // ── Shared logic ─────────────────────────────────────────────
 
-  internal static class CompatUtils
+  internal static partial class CompatUtils
   {
     internal const int MaxItemsToDisplay = 8;
     internal const int MaxDescriptionLength = 4096;
+    internal const int MaxTitleLength = 256;
     internal const string HomebrewRepo = "homebrew-compatibility";
     internal const string CommercialRepo = "compatibility";
 
-    internal static readonly string[] StatusNames = {
+    internal static readonly string[] StatusNames = [
       // Priority, display when possible.
       "Playable", "Ingame", "Ingame +", "Ingame -",
       "Menu", "Intro", "Bootable", "Crash", "Nothing",
@@ -37,13 +39,32 @@ namespace Vita3KBot.Commands
       "Trophy Bug", "Networking Bug",
       // Invalid
       "Invalid", "Unknown",
-    };
-
-    // PCS + 1 letter + 5 digits (e.g., PCSE00000)
-    internal static readonly Regex TitleIdRegex = new(@"^PCS[A-Z]\d{5}$", RegexOptions.Compiled);
+    ];
 
     internal static bool IsValidTitleId(string titleId) =>
-      TitleIdRegex.IsMatch(titleId);
+      TitleIdRegex().IsMatch(titleId);
+
+    internal static string Normalize(string text) =>
+      PunctuationRegex().Replace(text, " ").ToLowerInvariant();
+
+    internal static string EscapeMarkdown(string text) =>
+      MarkdownRegex().Replace(text, @"\$0");
+
+    internal static string CodeSpan(string text) =>
+      "`" + text.Replace("`", "'") + "`";
+
+    internal static string Truncate(string text, int maxLength) =>
+      text.Length <= maxLength ? text : text[..(maxLength - 1)] + "…";
+
+    // PCS + 1 letter + 5 digits (e.g., PCSE00000)
+    [GeneratedRegex(@"^PCS[A-Z]\d{5}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex TitleIdRegex();
+
+    [GeneratedRegex(@"[^\p{L}\p{N}\s]", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex PunctuationRegex();
+
+    [GeneratedRegex(@"[\\*_~`|\[\]()]", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex MarkdownRegex();
 
     internal class TitleInfo
     {
@@ -63,22 +84,14 @@ namespace Vita3KBot.Commands
         Status = "Unknown";
         LabelColor = Color.Orange;
 
-        var foundStatus = false;
         foreach (var name in StatusNames)
         {
-          foreach (var label in issue.Labels)
+          var label = issue.Labels
+            .FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+          if (label != null)
           {
-            if (name.ToLower().Equals(label.Name.ToLower()))
-            {
-              Status = name;
-              LabelColor = new Color(UInt32.Parse(label.Color, NumberStyles.HexNumber));
-              foundStatus = true;
-              break;
-            }
-          }
-
-          if (foundStatus)
-          {
+            Status = name;
+            LabelColor = new Color(UInt32.Parse(label.Color, NumberStyles.HexNumber));
             break;
           }
         }
@@ -96,7 +109,12 @@ namespace Vita3KBot.Commands
 
         var comments = await client.Issue.Comment.GetAllForIssue(
           "Vita3K", IsHomebrew ? HomebrewRepo : CommercialRepo, _issue.Number);
-        var lastComment = comments[_issue.Comments - 1];
+        if (comments.Count == 0)
+        {
+          return;
+        }
+
+        var lastComment = comments[^1];
         LatestComment = "**" + lastComment.User.Login + "**: " + lastComment.Body;
         LatestProfileImage = lastComment.User.AvatarUrl;
       }
@@ -104,80 +122,103 @@ namespace Vita3KBot.Commands
 
     internal static async Task<(string message, Embed embed)?> SearchCompat(string keyword)
     {
-      var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
-      var sanitized = Regex.Replace(keyword, @"[^a-zA-Z0-9\s]", " ");
-
-      var search = new SearchIssuesRequest(sanitized)
+      var keywords = Normalize(keyword).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+      if (keywords.Length == 0)
       {
-        Repos = new RepositoryCollection
-        {
-          "Vita3K/homebrew-compatibility",
-          "Vita3K/compatibility"
-        },
+        return (NotFoundMessage(keyword), null);
+      }
+
+      var github = new GitHubClient(new ProductHeaderValue("Vita3KBot"));
+      var searchResults = (await github.Search.SearchIssues(BuildSearchRequest(keywords))).Items;
+      var matches = RankMatches(searchResults, keywords);
+
+      if (matches.Count == 0)
+      {
+        return (NotFoundMessage(keyword), null);
+      }
+
+      return matches.Count == 1
+        ? (null, await BuildTitleEmbed(github, matches[0]))
+        : (null, BuildResultListEmbed(matches, keyword));
+    }
+
+    private static string NotFoundMessage(string keyword) =>
+      $"No games found for search term {EscapeMarkdown(Truncate(keyword, 200))}.";
+
+    private static SearchIssuesRequest BuildSearchRequest(string[] keywords) =>
+      new(string.Join(' ', keywords))
+      {
+        Repos = ["Vita3K/homebrew-compatibility", "Vita3K/compatibility"],
         State = ItemState.Open,
       };
 
-      var keywords = sanitized.ToLower().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-      var searchResults = (await github.Search.SearchIssues(search)).Items;
-      // The following makes sure all the keywords are contained in each title, and removes the ones that don't.
-      var filteredResults = searchResults
-        .Where(x => keywords.Any(y => x.Title.ToLower().Contains(y))).ToList();
+    private static List<Issue> RankMatches(IReadOnlyList<Issue> searchResults, string[] keywords)
+    {
+      var scored = searchResults
+        .Select(issue =>
+        {
+          var title = Normalize(issue.Title);
+          return (issue, score: keywords.Count(k => title.Contains(k, StringComparison.Ordinal)));
+        })
+        .Where(x => x.score > 0)
+        .ToList();
 
-      switch (filteredResults.Count)
+      if (scored.Count == 0)
       {
-        case 0:
-          return ($"No games found for search term {keyword}.", null);
-
-        case 1:
-        {
-          var issue = filteredResults.First();
-          var info = new TitleInfo(issue);
-          await info.FetchCommentInfo(github);
-          var description = "Status: **" + info.Status + "**\n\n" + info.LatestComment;
-          if (description.Length > MaxDescriptionLength)
-          {
-            description = description[..(MaxDescriptionLength - 3)] + "...";
-          }
-
-          var builder = new EmbedBuilder()
-            .WithTitle($"*{issue.Title}* ({(info.IsHomebrew ? "Homebrew" : "Commercial")})")
-            .WithDescription(description)
-            .WithColor(info.LabelColor)
-            .WithUrl(issue.HtmlUrl)
-            .WithCurrentTimestamp();
-          if (info.LatestProfileImage.Length > 0)
-          {
-            builder.WithThumbnailUrl(info.LatestProfileImage);
-          }
-
-          return (null, builder.Build());
-        }
-
-        default:
-        {
-          var description = new StringBuilder();
-          for (var i = 0; i < Math.Min(filteredResults.Count, MaxItemsToDisplay); i++)
-          {
-            var issue = filteredResults[i];
-            var info = new TitleInfo(issue);
-            var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
-            description.Append($"*[{issue.Title}]({issue.HtmlUrl})* ({homebrewText}): **{info.Status}**\n");
-          }
-
-          if (filteredResults.Count > MaxItemsToDisplay)
-          {
-            description.Append("...");
-          }
-
-          var builder = new EmbedBuilder()
-            .WithTitle($"Found {filteredResults.Count} issues for search term {keyword}.")
-            .WithDescription(description.ToString())
-            .WithColor(Color.Orange)
-            .WithCurrentTimestamp();
-
-          return (null, builder.Build());
-        }
+        return [];
       }
+
+      var bestScore = scored.Max(x => x.score);
+      return [.. scored.Where(x => x.score == bestScore).Select(x => x.issue)];
+    }
+
+    private static async Task<Embed> BuildTitleEmbed(GitHubClient github, Issue issue)
+    {
+      var info = new TitleInfo(issue);
+      await info.FetchCommentInfo(github);
+
+      var description = "Status: **" + info.Status + "**\n\n" + info.LatestComment;
+      if (description.Length > MaxDescriptionLength)
+      {
+        description = description[..(MaxDescriptionLength - 3)] + "...";
+      }
+
+      var builder = new EmbedBuilder()
+        .WithTitle(Truncate($"{issue.Title} ({(info.IsHomebrew ? "Homebrew" : "Commercial")})", MaxTitleLength))
+        .WithDescription(description)
+        .WithColor(info.LabelColor)
+        .WithUrl(issue.HtmlUrl)
+        .WithCurrentTimestamp();
+      if (info.LatestProfileImage.Length > 0)
+      {
+        builder.WithThumbnailUrl(info.LatestProfileImage);
+      }
+
+      return builder.Build();
+    }
+
+    private static Embed BuildResultListEmbed(List<Issue> matches, string keyword)
+    {
+      var description = new StringBuilder();
+      for (var i = 0; i < Math.Min(matches.Count, MaxItemsToDisplay); i++)
+      {
+        var issue = matches[i];
+        var info = new TitleInfo(issue);
+        var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
+        description.Append($"{CodeSpan(issue.Title)} ({homebrewText}): **{info.Status}** · [issue]({issue.HtmlUrl})\n");
+      }
+
+      if (matches.Count > MaxItemsToDisplay)
+      {
+        description.Append("...");
+      }
+
+      return new EmbedBuilder()
+        .WithTitle(Truncate($"Found {matches.Count} issues for search term {keyword}.", MaxTitleLength))
+        .WithDescription(description.ToString())
+        .WithColor(Color.Orange)
+        .WithCurrentTimestamp()
+        .Build();
     }
   }
 

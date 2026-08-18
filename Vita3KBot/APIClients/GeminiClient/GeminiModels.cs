@@ -9,7 +9,7 @@ namespace APIClients
     public const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
     // General-purpose model used for standard responses, classification, log analysis, etc.
-    public const string Flash = "gemini-3.6-flash";
+    public const string Flash = "gemini-3.7-flash";
 
     // Model used when Google Search grounding is required
     public const string FlashSearch = "gemini-2.5-flash";

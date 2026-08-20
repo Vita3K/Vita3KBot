@@ -205,7 +205,7 @@ namespace Vita3KBot.Commands
         var issue = matches[i];
         var info = new TitleInfo(issue);
         var homebrewText = info.IsHomebrew ? "Homebrew" : "Commercial";
-        description.Append($"{CodeSpan(issue.Title)} ({homebrewText}): **{info.Status}** · [issue]({issue.HtmlUrl})\n");
+        description.Append($"[{CodeSpan(issue.Title)}]({issue.HtmlUrl}) ({homebrewText}): **{info.Status}**\n");
       }
 
       if (matches.Count > MaxItemsToDisplay)

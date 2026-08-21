@@ -5,11 +5,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-using APIClients;
 using Discord;
 using Discord.Commands;
 using Discord.Interactions;
 
+using Vita3KBot.APIClients.GeminiClient;
 using Vita3KBot.Commands.Attributes;
 
 using DC = Discord.Commands;

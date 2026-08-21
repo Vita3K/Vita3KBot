@@ -7,12 +7,12 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-using APIClients;
 using Discord;
 using Discord.WebSocket;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Vita3KBot.APIClients.GeminiClient;
 using Vita3KBot.APIClients.GithubClient;
 using Vita3KBot.Utils;
 

@@ -16,7 +16,7 @@ namespace Vita3KBot.Commands.Attributes
   // ── Prefix command ───────────────────────────────────────────
 
   [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-  public class PrefixRequireRoleOrChannel : DC.PreconditionAttribute
+  public class PrefixRequireRoleOrChannelAttribute : DC.PreconditionAttribute
   {
     // Allowed channel ID
     private const ulong AllowedChannelId = 577624167541637158; // # bot-spam
@@ -72,13 +72,13 @@ namespace Vita3KBot.Commands.Attributes
   // ── Slash command ────────────────────────────────────────────
 
   [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-  public class SlashRequireRoleOrChannel : DI.PreconditionAttribute
+  public class SlashRequireRoleOrChannelAttribute : DI.PreconditionAttribute
   {
     private const ulong AllowedChannelId = 577624167541637158; // # bot-spam
 
     public override async Task<DI.PreconditionResult> CheckRequirementsAsync(
       IInteractionContext context,
-      ICommandInfo command,
+      ICommandInfo commandInfo,
       IServiceProvider services)
     {
       if (context.User is SocketGuildUser)

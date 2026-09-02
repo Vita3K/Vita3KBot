@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -42,6 +43,44 @@ namespace Vita3KBot.Services
     private const string ContentProperty = "content";
     private const string PartsProperty = "parts";
     private const string TextProperty = "text";
+
+    // Gemini answers 429/503 when it is momentarily overloaded; those are worth retrying,
+    // and worth telling the user apart from a real failure.
+    private const int GeminiMaxAttempts = 3;
+    private const string GeminiBusyMessage = "Gemini is a bit overloaded right now 🚦 — give it a moment and try again.";
+
+    private static bool IsGeminiBusy(HttpStatusCode code) =>
+      code is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
+
+    private static bool IsGeminiTransient(HttpStatusCode code) =>
+      IsGeminiBusy(code)
+      || code is HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout;
+
+    // Single entry point for every Gemini call: serializes the body and retries transient
+    // failures with exponential backoff (1 s, 2 s). The caller still owns the response.
+    private static async Task<HttpResponseMessage> PostGeminiAsync(string model, object body)
+    {
+      var json = JsonSerializer.Serialize(body);
+      var url = $"{GeminiModels.BaseUrl}/{model}:generateContent?key={GeminiApiKey}";
+
+      var resp = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, JsonMimeType));
+
+      for (var attempt = 2; attempt <= GeminiMaxAttempts; attempt++)
+      {
+        if (resp.IsSuccessStatusCode || !IsGeminiTransient(resp.StatusCode))
+        {
+          return resp;
+        }
+
+        Console.WriteLine($"[Gemini] {(int)resp.StatusCode} on {model} (attempt {attempt - 1}/{GeminiMaxAttempts})");
+        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 2)));
+
+        resp.Dispose();
+        resp = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, JsonMimeType));
+      }
+
+      return resp;
+    }
 
     // ========================
     // Image Spam Detection
@@ -196,13 +235,11 @@ namespace Vita3KBot.Services
           generationConfig = new { temperature = 0.0, responseMimeType = JsonMimeType }
         };
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var response = await _httpClient.PostAsync(
-          $"{GeminiModels.BaseUrl}/{GeminiModels.FlashLite}:generateContent?key={GeminiApiKey}",
-          new StringContent(json, Encoding.UTF8, JsonMimeType));
+        var response = await PostGeminiAsync(GeminiModels.FlashLite, requestBody);
 
         if (!response.IsSuccessStatusCode)
         {
+          Console.WriteLine($"[Piracy] Gemini {(int)response.StatusCode}");
           return new PiracyVerdict(false, 0, "api error");
         }
 
@@ -424,6 +461,10 @@ namespace Vita3KBot.Services
         return;
       }
 
+      // Answering can take a while, so say so up front and edit the same message afterwards.
+      await msg.Channel.TriggerTypingAsync();
+      var thinking = await msg.ReplyAsync("🤔 Thinking… ⏳");
+
       // History fetching moved into AskGeminiWithContextAsync
       var (answer, emoji) = await AskGeminiWithContextAsync(msg, msg.Author.Username);
 
@@ -441,7 +482,7 @@ namespace Vita3KBot.Services
         answer = answer[..1900] + "…";
       }
 
-      await msg.ReplyAsync(answer);
+      await thinking.ModifyAsync(m => m.Content = answer);
     }
 
     private const int MaxImagesForAI = 4;
@@ -558,9 +599,7 @@ namespace Vita3KBot.Services
           }
         };
 
-        var classifyResp = await _httpClient.PostAsync(
-          $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-          new StringContent(JsonSerializer.Serialize(classifyBody), Encoding.UTF8, JsonMimeType));
+        var classifyResp = await PostGeminiAsync(GeminiModels.Flash, classifyBody);
 
         var needsSearch = false;
         if (classifyResp.IsSuccessStatusCode)
@@ -588,9 +627,7 @@ namespace Vita3KBot.Services
             tools = new[] { new { google_search = new { } } }
           };
 
-          var resp = await _httpClient.PostAsync(
-            $"{GeminiModels.BaseUrl}/{GeminiModels.FlashSearch}:generateContent?key={GeminiApiKey}",
-            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
+          var resp = await PostGeminiAsync(GeminiModels.FlashSearch, body);
 
           if (!resp.IsSuccessStatusCode)
           {
@@ -627,15 +664,15 @@ namespace Vita3KBot.Services
             contents = new[] { new { parts = BuildParts(prompt) } }
           };
 
-          var resp = await _httpClient.PostAsync(
-            $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-            new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
+          var resp = await PostGeminiAsync(GeminiModels.Flash, body);
 
           if (!resp.IsSuccessStatusCode)
           {
             var err = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($"[Gemini] {(int)resp.StatusCode} Error: {err}");
-            return ("Seems like the API is taking a nap 😴", FallbackEmoji);
+            return IsGeminiBusy(resp.StatusCode)
+              ? (GeminiBusyMessage, "🚦")
+              : ("Seems like the API is taking a nap 😴", FallbackEmoji);
           }
 
           using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
@@ -661,6 +698,11 @@ namespace Vita3KBot.Services
         }
 
         return ("No response.", FallbackEmoji);
+      }
+      catch (TaskCanceledException)
+      {
+        Console.WriteLine("[Gemini] Mention request timed out.");
+        return ("That took too long to answer ⏱️ — try asking again.", "⏱️");
       }
       catch (Exception ex)
       {
@@ -752,7 +794,7 @@ namespace Vita3KBot.Services
         .WithTitle("🔍 Log analysis")
         .WithDescription(diagnosis)
         .WithColor(problems.Count > 0 ? Color.Orange : Color.Green)
-        .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • ⚠️ AI-based, may be inaccurate")
+        .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • {GeminiModels.Flash} • ⚠️ AI-based, may be inaccurate")
         .Build();
 
       await reply.ModifyAsync(m => m.Embed = embed);
@@ -837,14 +879,20 @@ namespace Vita3KBot.Services
           contents = new[] { new { parts = new[] { new { text = logSummary } } } }
         };
 
-        var resp = await _httpClient.PostAsync(
-          $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={GeminiApiKey}",
-          new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, JsonMimeType));
+        var resp = await PostGeminiAsync(GeminiModels.Flash, body);
 
         if (!resp.IsSuccessStatusCode)
         {
           var err = await resp.Content.ReadAsStringAsync();
           Console.WriteLine($"[LogAnalysis] Gemini {(int)resp.StatusCode}: {err}");
+
+          if (IsGeminiBusy(resp.StatusCode))
+          {
+            return problems.Count > 0
+              ? $"I spotted {problems.Count} warning/error line(s), but {GeminiBusyMessage}"
+              : GeminiBusyMessage;
+          }
+
           return problems.Count > 0
             ? $"I spotted {problems.Count} warning/error line(s), but the analyzer is napping right now 😴 — a human can take a look."
             : "Couldn't analyze the log right now — the analyzer is napping 😴.";

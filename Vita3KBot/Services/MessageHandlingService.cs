@@ -444,6 +444,53 @@ namespace Vita3KBot.Services
       await msg.ReplyAsync(answer);
     }
 
+    private const int MaxImagesForAI = 4;
+    private const long MaxImageBytesForAI = 5 * 1024 * 1024; // 5 MB
+
+    // Image types Gemini accepts as inline data; GIF is deliberately left out.
+    private static readonly Dictionary<string, string> SupportedImageTypes = new()
+    {
+      [".png"] = "image/png",
+      [".jpg"] = "image/jpeg",
+      [".jpeg"] = "image/jpeg",
+      [".webp"] = "image/webp",
+      [".heic"] = "image/heic",
+      [".heif"] = "image/heif"
+    };
+
+    // Downloads the images attached to the mention and to the recent history so the model can
+    // actually look at the screenshot the user is asking about, newest attachments first.
+    private static async Task<List<object>> CollectImagePartsAsync(IEnumerable<IMessage> messages)
+    {
+      var parts = new List<object>();
+
+      foreach (var attachment in messages.SelectMany(m => m.Attachments))
+      {
+        if (parts.Count >= MaxImagesForAI)
+        {
+          break;
+        }
+
+        var ext = System.IO.Path.GetExtension(attachment.Filename).ToLower();
+        if (!SupportedImageTypes.TryGetValue(ext, out var mime) || attachment.Size > MaxImageBytesForAI)
+        {
+          continue;
+        }
+
+        try
+        {
+          var bytes = await _httpClient.GetByteArrayAsync(attachment.Url);
+          parts.Add(new { inline_data = new { mime_type = mime, data = Convert.ToBase64String(bytes) } });
+        }
+        catch (Exception ex)
+        {
+          Console.WriteLine($"[Gemini] Failed to download image {attachment.Filename}: {ex.Message}");
+        }
+      }
+
+      return parts;
+    }
+
     private static async Task<(string Answer, string Emoji)> AskGeminiWithContextAsync(SocketUserMessage msg, string askerName)
     {
       const string FallbackEmoji = "👀";
@@ -456,6 +503,7 @@ namespace Vita3KBot.Services
         Never ask follow-up questions. Never suggest continuing the conversation.
         Answer in one shot, done, finito.
         You can only use English. If the question is not in English, respond in English regardless.
+        Images may be attached; when they are, read them as part of the question.
 
         You MUST respond in the following JSON format and nothing else:
         {
@@ -472,6 +520,7 @@ namespace Vita3KBot.Services
         Never ask follow-up questions. Never suggest continuing the conversation.
         Answer in one shot, done, finito.
         You can only use English. If the question is not in English, respond in English regardless.
+        Images may be attached; when they are, read them as part of the question.
         """;
 
       try
@@ -491,6 +540,10 @@ namespace Vita3KBot.Services
 
           {askerName} is now asking you: {msg.Content}
           """;
+
+        // Newest first: the mention itself, then the history walking backwards.
+        var imageParts = await CollectImagePartsAsync(new[] { (IMessage)msg }.Concat(history));
+        object[] BuildParts(string text) => [new { text }, .. imageParts];
 
         // Step 1: Classify whether grounding is needed
         var classifyBody = new
@@ -531,7 +584,7 @@ namespace Vita3KBot.Services
           var body = new
           {
             system_instruction = new { parts = new[] { new { text = SystemPromptSearch } } },
-            contents = new[] { new { parts = new[] { new { text = prompt } } } },
+            contents = new[] { new { parts = BuildParts(prompt) } },
             tools = new[] { new { google_search = new { } } }
           };
 
@@ -571,7 +624,7 @@ namespace Vita3KBot.Services
           var body = new
           {
             system_instruction = new { parts = new[] { new { text = SystemPromptJson } } },
-            contents = new[] { new { parts = new[] { new { text = prompt } } } }
+            contents = new[] { new { parts = BuildParts(prompt) } }
           };
 
           var resp = await _httpClient.PostAsync(

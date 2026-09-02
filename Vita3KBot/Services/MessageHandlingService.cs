@@ -62,7 +62,9 @@ namespace Vita3KBot.Services
 
     private static readonly string[] KnownLogFileNames = ["log.txt", "vita3k.log"];
 
-    private static readonly HttpClient _httpClient = new();
+    // Gemini can take well over the 100 s default when the log summary is large,
+    // which surfaced as "The request was canceled due to the configured HttpClient.Timeout".
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromMinutes(3) };
     private static readonly string GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? throw new InvalidOperationException("GEMINI_API_KEY environment variable is not set.");
 
     private readonly DiscordSocketClient _client = services.GetRequiredService<DiscordSocketClient>();
@@ -680,6 +682,17 @@ namespace Vita3KBot.Services
       await msg.Channel.TriggerTypingAsync();
 
       var (summary, problems) = ExtractLogHighlights(logContent);
+
+      // Diagnosing can take a while, so post a placeholder first and edit it once the answer lands.
+      var pending = new EmbedBuilder()
+        .WithTitle("🔍 Log analysis")
+        .WithDescription("Analyzing the log… ⏳")
+        .WithColor(Color.LightGrey)
+        .WithFooter(logAttachment.Filename)
+        .Build();
+
+      var reply = await msg.ReplyAsync(embed: pending);
+
       var diagnosis = await DiagnoseLogWithGeminiAsync(summary, problems);
 
       var embed = new EmbedBuilder()
@@ -689,7 +702,7 @@ namespace Vita3KBot.Services
         .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • ⚠️ AI-based, may be inaccurate")
         .Build();
 
-      await msg.ReplyAsync(embed: embed);
+      await reply.ModifyAsync(m => m.Embed = embed);
     }
 
     // Pulls the parts of the log worth reading: the header (build version + system/GPU
@@ -804,6 +817,13 @@ namespace Vita3KBot.Services
         }
 
         return answer;
+      }
+      catch (TaskCanceledException)
+      {
+        Console.WriteLine("[LogAnalysis] Gemini request timed out.");
+        return problems.Count > 0
+          ? $"I spotted {problems.Count} warning/error line(s), but the analyzer took too long to answer ⏱️ — a human can take a look."
+          : "The analyzer took too long to answer ⏱️ — try again in a moment.";
       }
       catch (Exception ex)
       {

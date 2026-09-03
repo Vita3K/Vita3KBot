@@ -18,7 +18,7 @@ A Discord bot for the official **Vita3K** Discord server.
 
 To build and develop Vita3K-Bot, you will need:
 
-* **.NET 8.0 SDK** or newer
+* **.NET 10.0 SDK** or newer
   [https://dotnet.microsoft.com/download](https://dotnet.microsoft.com/download)
 
 * A text editor or IDE (recommended options):
@@ -30,7 +30,7 @@ To build and develop Vita3K-Bot, you will need:
 
 ## Runtime Requirements
 
-* **.NET 8.0 SDK** or newer (required when running from source)
+* **.NET 10.0 SDK** or newer (required when running from source)
 
 ---
 

@@ -225,6 +225,8 @@ namespace Vita3KBot.Services
           "Guys I need your help to download mortal Kombat 9" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking to download a commercial game for free"}
           "Who can DM me the stuff to download mortal Kombat 9" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking to download a commercial game for free"}
           "Guys when i install a pkg file game it asks for license" -> {"is_piracy": true, "confidence": 1.00, "reason": "asking for an license is illegal"}
+          "can anyone give me the link for Enhanced version?" -> {"is_piracy": false, "confidence": 0.90, "reason": "asking for not copyrighted content, just a vita3k-related request"}
+
 
           Message: "{{content}}"
           """;

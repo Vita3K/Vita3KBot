@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -10,6 +11,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 
 using Vita3KBot.Commands;
+using Vita3KBot.Utils;
 
 using static Vita3KBot.Utils.Utils;
 
@@ -90,12 +92,36 @@ namespace Vita3KBot.Services
       }
       else
       {
-        var currentCommand = command.GetValueOrDefault();
-        await context.Channel.SendMessageAsync("Halt! We've hit an error." + Code(result.ErrorReason));
-        if (result.ErrorReason == "The input text has too few parameters.")
+        if (command.IsSpecified && result.Error is CommandError.BadArgCount or CommandError.ParseFailed or CommandError.ObjectNotFound or CommandError.MultipleMatches)
         {
-          await context.Channel.SendMessageAsync($"Try `-help {currentCommand.Name}` for the command's usage");
+          // Wrong or missing parameters: explain what went wrong and show the command's usage
+          var cmd = command.Value;
+          var embed = HelpUtils.BuildCommandEmbed(new CommandMatch(cmd, cmd.Aliases[0]), RolesUtils.IsWhitelisted(context), RolesUtils.IsModerator(context));
+          var usage = $"-{cmd.Aliases[0]} {string.Join(" ", cmd.Parameters.Select(p => p.IsOptional ? $"[{p.Name}]" : $"<{p.Name}>"))}".TrimEnd();
+          var reason = result.Error == CommandError.BadArgCount ? "Missing or too many parameters." : result.ErrorReason;
+          embed.WithTitle("Invalid usage").WithDescription($"{reason}\nUsage: `{usage}`\n\n{cmd.Summary}");
+          await context.Channel.SendMessageAsync(embed: embed.Build());
+          return;
         }
+
+        var message = "Halt! We've hit an error.";
+        if (result is Discord.Commands.ExecuteResult { Exception: { } ex })
+        {
+          var cause = ex is CommandException { InnerException: { } inner } ? inner : ex;
+          Console.WriteLine(ex);
+          message += Code($"{cause.GetType().Name}: {cause.Message}");
+        }
+        else
+        {
+          message += Code(result.ErrorReason);
+        }
+
+        if (command.IsSpecified)
+        {
+          message += $"\nTry `-help {command.Value.Aliases[0]}` for the command's usage.";
+        }
+
+        await context.Channel.SendMessageAsync(message);
       }
     }
 

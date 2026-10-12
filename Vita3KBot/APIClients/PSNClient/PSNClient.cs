@@ -183,17 +183,38 @@ namespace Vita3KBot.APIClients.PSNClient
 
     private static void AddMultiPackageFields(EmbedBuilder patchEmbed, Package[] pkgs)
     {
-      // Discord embeds allow at most 25 fields; reserve one for the hybrid package.
-      const int MaxUpdateFields = 24;
-      var skipped = Math.Max(0, pkgs.Length - MaxUpdateFields);
-      for (var i = skipped; i < pkgs.Length; i++)
+      // Discord embeds allow at most 25 fields and 6000 characters in total.
+      // Keep the newest updates that fit; the hybrid package covers the older ones.
+      const int MaxFields = 24; // one slot reserved for the hybrid package
+      const int MaxTotalLength = 5800; // margin for title, description and footer
+
+      var hybridName = $"Hybrid Package ({ToMB(pkgs[^1].HybridPackage.Size)}MB) - Min Firmware: {FormatSysVer(pkgs[^1].SysVer)}";
+      var hybridValue = $"[{pkgs[^1].Url.Substring(103, 28)}.pkg]({pkgs[^1].HybridPackage.Url})";
+      var length = hybridName.Length + hybridValue.Length + (patchEmbed.Title?.Length ?? 0) + 300;
+
+      var fields = new List<(string Name, string Value)>();
+      for (var i = pkgs.Length - 1; i >= 0 && fields.Count < MaxFields; i--)
       {
         var pkg = pkgs[i];
-        patchEmbed.AddField($"Update v{pkg.Version} - ({ToMB(pkg.Size)}MB) - Min Firmware: {FormatSysVer(pkg.SysVer)}", $"[{pkg.Url.Substring(103, 28)}.pkg]({pkg.Url})");
+        var name = $"Update v{pkg.Version} - ({ToMB(pkg.Size)}MB) - Min Firmware: {FormatSysVer(pkg.SysVer)}";
+        var value = $"[{pkg.Url.Substring(103, 28)}.pkg]({pkg.Url})";
+        if (length + name.Length + value.Length > MaxTotalLength)
+        {
+          break;
+        }
+
+        length += name.Length + value.Length;
+        fields.Add((name, value));
       }
 
-      patchEmbed.AddField($"Hybrid Package ({ToMB(pkgs[^1].HybridPackage.Size)}MB) - " +
-        $"Min Firmware: {FormatSysVer(pkgs[^1].SysVer)}", $"[{pkgs[^1].Url.Substring(103, 28)}.pkg]({pkgs[^1].HybridPackage.Url})");
+      fields.Reverse();
+      foreach (var (name, value) in fields)
+      {
+        patchEmbed.AddField(name, value);
+      }
+
+      var skipped = pkgs.Length - fields.Count;
+      patchEmbed.AddField(hybridName, hybridValue);
       patchEmbed.Description = $"Content ID: {pkgs[0].ContentId}";
       patchEmbed.WithFooter(f => f.Text = skipped > 0
         ? $"Note: Hybrid Packages contain all previous updates. {skipped} older update(s) not shown."

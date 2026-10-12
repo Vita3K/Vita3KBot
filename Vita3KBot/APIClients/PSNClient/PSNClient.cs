@@ -183,17 +183,21 @@ namespace Vita3KBot.APIClients.PSNClient
 
     private static void AddMultiPackageFields(EmbedBuilder patchEmbed, Package[] pkgs)
     {
-      var i = 0;
-      do
+      // Discord embeds allow at most 25 fields; reserve one for the hybrid package.
+      const int MaxUpdateFields = 24;
+      var skipped = Math.Max(0, pkgs.Length - MaxUpdateFields);
+      for (var i = skipped; i < pkgs.Length; i++)
       {
-        var pkg = pkgs[i++];
+        var pkg = pkgs[i];
         patchEmbed.AddField($"Update v{pkg.Version} - ({ToMB(pkg.Size)}MB) - Min Firmware: {FormatSysVer(pkg.SysVer)}", $"[{pkg.Url.Substring(103, 28)}.pkg]({pkg.Url})");
-      } while (i < pkgs.Length);
+      }
 
       patchEmbed.AddField($"Hybrid Package ({ToMB(pkgs[^1].HybridPackage.Size)}MB) - " +
         $"Min Firmware: {FormatSysVer(pkgs[^1].SysVer)}", $"[{pkgs[^1].Url.Substring(103, 28)}.pkg]({pkgs[^1].HybridPackage.Url})");
       patchEmbed.Description = $"Content ID: {pkgs[0].ContentId}";
-      patchEmbed.WithFooter(f => f.Text = $"Note: Hybrid Packages contain all previous updates");
+      patchEmbed.WithFooter(f => f.Text = skipped > 0
+        ? $"Note: Hybrid Packages contain all previous updates. {skipped} older update(s) not shown."
+        : "Note: Hybrid Packages contain all previous updates");
     }
 
     private static void AddSinglePackageFields(EmbedBuilder patchEmbed, Package pkg)

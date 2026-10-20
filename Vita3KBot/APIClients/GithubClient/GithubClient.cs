@@ -34,7 +34,7 @@ namespace Vita3KBot.APIClients.GithubClient
       commit = commit[..commit.IndexOf('\n')];
       GitHubCommit REF = await github.Repository.Commit.Get(RepoOwner, RepoOwner, commit);
       Issue prInfo = await GetPRInfo(github, commit);
-      string bodyText = !string.IsNullOrWhiteSpace(prInfo.Body) ? prInfo.Body : REF.Commit.Message;
+      string bodyText = !string.IsNullOrWhiteSpace(prInfo?.Body) ? FormatPrBody(prInfo.Body) : REF.Commit.Message;
 
       // Get build assets
       string buildNum = latestRelease.Body[(latestRelease.Body.IndexOf("Build:") + 6)..].Trim();
@@ -174,7 +174,7 @@ namespace Vita3KBot.APIClients.GithubClient
     {
       if (prInfo != null)
       {
-        var bodyText = !string.IsNullOrWhiteSpace(prInfo.Body) ? prInfo.Body : (commitInfo.Message ?? "");
+        var bodyText = !string.IsNullOrWhiteSpace(prInfo.Body) ? FormatPrBody(prInfo.Body) : (commitInfo.Message ?? "");
         return ($"PR: #{prInfo.Number} By {prInfo.User.Login}", prInfo.HtmlUrl, prInfo.Title, bodyText);
       }
 
@@ -272,6 +272,35 @@ namespace Vita3KBot.APIClients.GithubClient
         };
       }
     }
+
+    // Strips HTML comments (e.g. CodeRabbit's marker comments) and shows the CodeRabbit
+    // summary as a quoted block so it stands out from the PR author's own description.
+    private static string FormatPrBody(string body)
+    {
+      if (string.IsNullOrEmpty(body))
+      {
+        return body;
+      }
+
+      body = CodeRabbitBlockRegex().Replace(body, m =>
+      {
+        // Blank lines are dropped: a bare ">" is rendered literally by Discord.
+        var lines = m.Groups["content"].Value.Split('\n')
+          .Select(l => l.TrimEnd('\r'))
+          .Where(l => !string.IsNullOrWhiteSpace(l))
+          .Select(l => l.Trim().TrimStart('#').Trim() == "Summary by CodeRabbit" ? "**🐰 Summary by CodeRabbit**" : l)
+          .Select(l => $"> {l}");
+        return "\n" + string.Join("\n", lines) + "\n";
+      });
+
+      return HtmlCommentRegex().Replace(body, "").Trim();
+    }
+
+    [GeneratedRegex(@"<!--\s*This is an auto-generated comment: release notes by coderabbit\.ai\s*-->(?<content>.*?)<!--\s*end of auto-generated comment: release notes by coderabbit\.ai\s*-->", RegexOptions.Singleline | RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex CodeRabbitBlockRegex();
+
+    [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex HtmlCommentRegex();
 
     [GeneratedRegex(@"Corresponding commit:\s*\[(?<message>.+?)\]\((?<url>[^)]+)\)\s*\((?<author>[^()]+)\)", RegexOptions.Singleline, matchTimeoutMilliseconds: 1000)]
     private static partial Regex CommitInfoRegex();

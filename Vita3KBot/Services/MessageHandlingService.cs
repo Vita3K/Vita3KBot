@@ -96,7 +96,8 @@ namespace Vita3KBot.Services
     // Log File Analysis
     // ========================
 
-    private const long MaxLogBytes = 2 * 1024 * 1024; // 2 MB
+    // Real-world Android logs routinely exceed 3 MB, and only the highlights are sent to the AI anyway.
+    private const long MaxLogBytes = 25 * 1024 * 1024; // 25 MB
     private const int MaxLogCharsForAI = 12000;
 
     private static readonly string[] KnownLogFileNames = ["log.txt", "vita3k.log"];
@@ -756,6 +757,22 @@ namespace Vita3KBot.Services
         .FirstOrDefault(a => LooksLikeLogAttachment(a) && a.Size <= MaxLogBytes);
       if (logAttachment == null)
       {
+        // Only complain about files that are clearly meant to be Vita3K logs, not any big .txt.
+        var oversized = msg.Attachments.FirstOrDefault(a =>
+          a.Size > MaxLogBytes
+          && (KnownLogFileNames.Contains(a.Filename.ToLowerInvariant())
+              || System.IO.Path.GetExtension(a.Filename).Equals(".log", StringComparison.OrdinalIgnoreCase)));
+        if (oversized != null)
+        {
+          var errorEmbed = new EmbedBuilder()
+            .WithTitle("🔍 Log analysis")
+            .WithDescription($"This log is too large to analyze ({oversized.Size / (1024.0 * 1024.0):F1} MB). The limit is {MaxLogBytes / (1024 * 1024)} MB — please re-upload a smaller log (e.g. a fresh run that reproduces the issue).")
+            .WithColor(Color.Red)
+            .WithFooter(oversized.Filename)
+            .Build();
+          await msg.ReplyAsync(embed: errorEmbed);
+        }
+
         return;
       }
 

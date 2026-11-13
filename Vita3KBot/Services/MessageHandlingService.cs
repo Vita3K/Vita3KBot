@@ -44,43 +44,12 @@ namespace Vita3KBot.Services
     private const string PartsProperty = "parts";
     private const string TextProperty = "text";
 
-    // Gemini answers 429/503 when it is momentarily overloaded; those are worth retrying,
-    // and worth telling the user apart from a real failure.
-    private const int GeminiMaxAttempts = 3;
-    private const string GeminiBusyMessage = "Gemini is a bit overloaded right now 🚦 — give it a moment and try again.";
+    private const string GeminiBusyMessage = GeminiClient.BusyMessage;
 
-    private static bool IsGeminiBusy(HttpStatusCode code) =>
-      code is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
+    private static bool IsGeminiBusy(HttpStatusCode code) => GeminiClient.IsBusy(code);
 
-    private static bool IsGeminiTransient(HttpStatusCode code) =>
-      IsGeminiBusy(code)
-      || code is HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout;
-
-    // Single entry point for every Gemini call: serializes the body and retries transient
-    // failures with exponential backoff (1 s, 2 s). The caller still owns the response.
-    private static async Task<HttpResponseMessage> PostGeminiAsync(string model, object body)
-    {
-      var json = JsonSerializer.Serialize(body);
-      var url = $"{GeminiModels.BaseUrl}/{model}:generateContent?key={GeminiApiKey}";
-
-      var resp = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, JsonMimeType));
-
-      for (var attempt = 2; attempt <= GeminiMaxAttempts; attempt++)
-      {
-        if (resp.IsSuccessStatusCode || !IsGeminiTransient(resp.StatusCode))
-        {
-          return resp;
-        }
-
-        Console.WriteLine($"[Gemini] {(int)resp.StatusCode} on {model} (attempt {attempt - 1}/{GeminiMaxAttempts})");
-        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 2)));
-
-        resp.Dispose();
-        resp = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, JsonMimeType));
-      }
-
-      return resp;
-    }
+    private static Task<HttpResponseMessage> PostGeminiAsync(string model, object body) =>
+      GeminiClient.PostAsync(model, body);
 
     // ========================
     // Image Spam Detection
@@ -102,10 +71,8 @@ namespace Vita3KBot.Services
 
     private static readonly string[] KnownLogFileNames = ["log.txt", "vita3k.log"];
 
-    // Gemini can take well over the 100 s default when the log summary is large,
-    // which surfaced as "The request was canceled due to the configured HttpClient.Timeout".
+    // Used for downloading attachments (logs, images); Gemini calls go through GeminiClient.
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromMinutes(3) };
-    private static readonly string GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? throw new InvalidOperationException("GEMINI_API_KEY environment variable is not set.");
 
     private readonly DiscordSocketClient _client = services.GetRequiredService<DiscordSocketClient>();
 
@@ -149,29 +116,30 @@ namespace Vita3KBot.Services
       };
     }
 
-    private static async Task MonitorPiracy(SocketUserMessage msg, SocketGuildUser guildUser)
+    // Returns true when the message was flagged (and warned about) as piracy.
+    private static async Task<bool> MonitorPiracy(SocketUserMessage msg, SocketGuildUser guildUser)
     {
       if (guildUser.IsBot || guildUser.IsWebhook)
       {
-        return;
+        return false;
       }
 
       if (RolesUtils.IsWhitelisted(guildUser))
       {
-        return;
+        return false;
       }
 
       var content = msg.Content;
       if (string.IsNullOrWhiteSpace(content))
       {
-        return;
+        return false;
       }
 
       var lower = content.ToLower();
       bool hasTrigger = TriggerKeywords.Any(k => lower.Contains(k));
       if (!hasTrigger)
       {
-        return;
+        return false;
       }
 
       var verdict = await CheckPiracyWithGeminiAsync(content);
@@ -180,7 +148,10 @@ namespace Vita3KBot.Services
       if (verdict.IsPiracy && verdict.Confidence >= AutoActionThreshold)
       {
         await HandlePiracyViolationAsync(msg, guildUser);
+        return true;
       }
+
+      return false;
     }
 
     private static async Task<PiracyVerdict> CheckPiracyWithGeminiAsync(string content)
@@ -289,7 +260,11 @@ namespace Vita3KBot.Services
         .WithFooter("⚠️ Please note that since we use AI-based detection, there may be errors. We appreciate your understanding.")
         .Build();
 
-      await msg.ReplyAsync(embed: embed, allowedMentions: AllowedMentions.None); // Due to the AI's low accuracy, no notification will be sent
+      // Reply with the reply ping on, so only the offending user is notified.
+      // (Mentions inside an embed never ping, so nothing else can be pinged.)
+      await msg.ReplyAsync(
+        embed: embed,
+        allowedMentions: new AllowedMentions(AllowedMentionTypes.None) { MentionRepliedUser = true });
     }
 
     private static string GetImageHash(Attachment attachment) =>
@@ -602,7 +577,7 @@ namespace Vita3KBot.Services
           }
         };
 
-        var classifyResp = await PostGeminiAsync(GeminiModels.Flash, classifyBody);
+        var classifyResp = await PostGeminiAsync(GeminiModels.Main, classifyBody);
 
         var needsSearch = false;
         if (classifyResp.IsSuccessStatusCode)
@@ -667,7 +642,7 @@ namespace Vita3KBot.Services
             contents = new[] { new { parts = BuildParts(prompt) } }
           };
 
-          var resp = await PostGeminiAsync(GeminiModels.Flash, body);
+          var resp = await PostGeminiAsync(GeminiModels.Main, body);
 
           if (!resp.IsSuccessStatusCode)
           {
@@ -711,6 +686,147 @@ namespace Vita3KBot.Services
       {
         Console.WriteLine($"Gemini mention error: {ex.Message}");
         return ("The API seems to be having a moment 🤒", FallbackEmoji);
+      }
+    }
+
+    // ========================
+    // #help Auto-Answer
+    // ========================
+
+    private const string HelpChannelName = "help";
+
+    // One answer per user per window, so a question split over several messages gets a single reply.
+    private static readonly TimeSpan HelpAnswerCooldown = TimeSpan.FromSeconds(30);
+    private static readonly ConcurrentDictionary<ulong, DateTime> _lastHelpAnswer = new();
+
+    private static bool IsHelpChannel(ISocketMessageChannel channel) => channel switch
+    {
+      SocketThreadChannel thread => thread.ParentChannel?.Name == HelpChannelName,
+      _ => channel.Name == HelpChannelName
+    };
+
+    private static async Task MonitorHelpQuestions(SocketUserMessage msg, SocketGuildUser guildUser)
+    {
+      if (guildUser.IsBot || guildUser.IsWebhook || RolesUtils.IsWhitelisted(guildUser))
+      {
+        return; // staff answer people themselves
+      }
+
+      if (!IsHelpChannel(msg.Channel))
+      {
+        return;
+      }
+
+      // Log uploads already get their own analysis reply.
+      if (msg.Attachments.Any(LooksLikeLogAttachment))
+      {
+        return;
+      }
+
+      // Don't butt into a conversation between people.
+      if (msg.ReferencedMessage is { } referenced && referenced.Author.Id != guildUser.Guild.CurrentUser.Id)
+      {
+        return;
+      }
+
+      if (string.IsNullOrWhiteSpace(msg.Content) && msg.Attachments.Count == 0)
+      {
+        return;
+      }
+
+      var now = DateTime.UtcNow;
+      if (_lastHelpAnswer.TryGetValue(guildUser.Id, out var last) && now - last < HelpAnswerCooldown)
+      {
+        return;
+      }
+
+      var answer = await AnswerHelpQuestionAsync(msg, guildUser.Username);
+      if (answer == null)
+      {
+        return;
+      }
+
+      _lastHelpAnswer[guildUser.Id] = DateTime.UtcNow;
+
+      if (answer.Length > 1800)
+      {
+        answer = answer[..1800] + "…";
+      }
+
+      await msg.ReplyAsync($"{answer}\n-# 🤖 AI answer ({GeminiModels.Main}) — may be inaccurate.");
+    }
+
+    // Returns null when the message is not a support question (or the API failed), so nothing is posted.
+    private static async Task<string> AnswerHelpQuestionAsync(SocketUserMessage msg, string askerName)
+    {
+      const string SystemPrompt = """
+        You are a support assistant in the #help channel of the Vita3K Discord server.
+        Vita3K is an open-source PlayStation Vita emulator for Windows, Linux, macOS and Android.
+        The official setup guide (firmware, fonts, installing games, requirements) is https://vita3k.org/quickstart.html
+        and the compatibility list is https://vita3k.org/compatibility.html
+
+        Decide first whether the latest message is a question or a request for help with Vita3K,
+        PS Vita, or emulation. Greetings, thanks, chit-chat, statements, and replies to other people
+        are NOT questions.
+
+        If it is a question, answer it:
+        - Short and actionable: at most 6 short bullet points or 4 short sentences.
+        - Do not ask follow-up questions; if more info is needed, say what to provide (e.g. their log file).
+        - If you are not sure, say so and point to the quickstart guide instead of guessing.
+        - Never suggest, discuss, or help with piracy, ROM/ISO/pkg downloads, licenses (.rif, work.bin, zRIF),
+          or where to get games. Only legally dumped games are supported.
+        - Answer in English only, regardless of the question's language.
+        - Images may be attached; read them as part of the question.
+
+        Respond ONLY with JSON:
+        {"is_question": true|false, "answer": "your answer, or empty string when is_question is false"}
+        """;
+
+      try
+      {
+        var history = await msg.Channel
+          .GetMessagesAsync(msg, Direction.Before, 10)
+          .FlattenAsync();
+
+        var historyText = string.Join("\n", history
+          .Reverse()
+          .Select(m => $"{m.Author.Username}: {m.Content}"));
+
+        var prompt = $"""
+          Recent chat history:
+          {historyText}
+
+          Latest message from {askerName}: {msg.Content}
+          """;
+
+        // Only the asker's own message's images: older screenshots usually belong to someone else.
+        var imageParts = await CollectImagePartsAsync([msg]);
+
+        var body = new
+        {
+          system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
+          contents = new[] { new { parts = (object[])[new { text = prompt }, .. imageParts] } },
+          generationConfig = new { responseMimeType = JsonMimeType }
+        };
+
+        using var resp = await PostGeminiAsync(GeminiModels.Main, body);
+        if (!resp.IsSuccessStatusCode)
+        {
+          Console.WriteLine($"[Help] Gemini {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync()}");
+          return null;
+        }
+
+        using var parsed = JsonDocument.Parse(GeminiClient.StripJsonFence(await GeminiClient.ReadTextAsync(resp)));
+        var isQuestion = parsed.RootElement.TryGetProperty("is_question", out var q) && q.GetBoolean();
+        var answer = parsed.RootElement.TryGetProperty("answer", out var a) ? a.GetString()?.Trim() : null;
+        Console.WriteLine($"[Help] is_question={isQuestion} user={askerName}");
+
+        return isQuestion && !string.IsNullOrEmpty(answer) ? answer : null;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"[Help] error: {ex.Message}");
+        return null;
       }
     }
 
@@ -813,7 +929,7 @@ namespace Vita3KBot.Services
         .WithTitle("🔍 Log analysis")
         .WithDescription(diagnosis)
         .WithColor(problems.Count > 0 ? Color.Orange : Color.Green)
-        .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • {GeminiModels.Flash} • ⚠️ AI-based, may be inaccurate")
+        .WithFooter($"{logAttachment.Filename} • {problems.Count} warning/error line(s) • {GeminiModels.Main} • ⚠️ AI-based, may be inaccurate")
         .Build();
 
       await reply.ModifyAsync(m => m.Embed = embed);
@@ -898,7 +1014,7 @@ namespace Vita3KBot.Services
           contents = new[] { new { parts = new[] { new { text = logSummary } } } }
         };
 
-        var resp = await PostGeminiAsync(GeminiModels.Flash, body);
+        var resp = await PostGeminiAsync(GeminiModels.Main, body);
 
         if (!resp.IsSuccessStatusCode)
         {
@@ -972,6 +1088,37 @@ namespace Vita3KBot.Services
       }
     }
 
+    // CodeRabbit's PR review chatter (comments/reviews relayed by the GitHub webhook) floods #github.
+    // Returns true when the message was deleted.
+    private static async Task<bool> MonitorCodeRabbitComments(SocketUserMessage msg)
+    {
+      if (msg.Channel.Name != "github")
+      {
+        return false;
+      }
+
+      var isCodeRabbitChatter = msg.Embeds.Any(e =>
+        (e.Author?.Name ?? "").StartsWith("coderabbitai", StringComparison.OrdinalIgnoreCase)
+        && ((e.Title ?? "").Contains("comment", StringComparison.OrdinalIgnoreCase)
+            || (e.Title ?? "").Contains("review", StringComparison.OrdinalIgnoreCase)));
+
+      if (!isCodeRabbitChatter)
+      {
+        return false;
+      }
+
+      try
+      {
+        await msg.DeleteAsync();
+        return true;
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"[GitHub] Failed to delete CodeRabbit message {msg.Id}: {ex.Message}");
+        return false;
+      }
+    }
+
     private static async Task MonitorMediaMessages(SocketUserMessage msg)
     {
       if (msg.Channel.Name == "media" &&
@@ -1025,6 +1172,11 @@ namespace Vita3KBot.Services
         return;
       }
 
+      if (await MonitorCodeRabbitComments(userMessage))
+      {
+        return;
+      }
+
       await MonitorNewBuilds(userMessage);
       await MonitorMediaMessages(userMessage);
       await MonitorLogFiles(userMessage);
@@ -1035,7 +1187,12 @@ namespace Vita3KBot.Services
       }
 
       await MonitorImageSpam(userMessage, guildUser);
-      await MonitorPiracy(userMessage, guildUser);
+      if (await MonitorPiracy(userMessage, guildUser))
+      {
+        return; // never answer a message that was just flagged as piracy
+      }
+
+      await MonitorHelpQuestions(userMessage, guildUser);
       if (message.Channel.Id != 577624167541637158 && (message.Channel as SocketTextChannel)?.CategoryId != 881557494483271701 && !RolesUtils.IsWhitelisted(guildUser))
       {
         return; // Only monitor mentions in #bot-spam or the off-topic category

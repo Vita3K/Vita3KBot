@@ -1,8 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 using Discord;
@@ -42,8 +39,6 @@ namespace Vita3KBot.Commands
 
     // Shared Gemini author icon, referenced by both the prefix and slash question commands
     internal const string GeminiIconUrl = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/google-gemini.webp";
-
-    private static readonly HttpClient _httpClient = new();
 
     internal static string RandomEightBall() =>
       EightBallReplies[Vita3KUtils.Random.Next(EightBallReplies.Length)];
@@ -102,9 +97,6 @@ namespace Vita3KBot.Commands
 
     internal static async Task<(string Answer, bool UsedSearch)> AskGeminiAsync(string question)
     {
-      var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY")
-        ?? throw new InvalidOperationException("GEMINI_API_KEY is not set.");
-
       const string SystemPrompt = """
         You are a helpful assistant in the Vita3K Discord server.
         Vita3K is an open-source PlayStation Vita emulator for PC.
@@ -116,83 +108,65 @@ namespace Vita3KBot.Commands
         You can only use English. If the question is not in English, respond in English regardless.
         """;
 
-      // ① First, have the standard model determine whether grounding is necessary
-      var classifyBody = new
+      try
       {
-        system_instruction = new
+        // ① First, have the standard model determine whether grounding is necessary
+        var classifyBody = new
         {
-          parts = new[] { new { text = "You are a classifier. Reply with only 'SEARCH' or 'NO_SEARCH'." } }
-        },
-        contents = new[] {
-          new { parts = new[] { new { text =
-            $"Does answering this question require up-to-date or real-time or technical information? Question: {question}" } } }
+          system_instruction = new
+          {
+            parts = new[] { new { text = "You are a classifier. Reply with only 'SEARCH' or 'NO_SEARCH'." } }
+          },
+          contents = new[] {
+            new { parts = new[] { new { text =
+              $"Does answering this question require up-to-date or real-time or technical information? Question: {question}" } } }
+          }
+        };
+
+        var needsSearch = false;
+        using (var classifyResp = await GeminiClient.PostAsync(GeminiModels.Main, classifyBody))
+        {
+          if (classifyResp.IsSuccessStatusCode)
+          {
+            var verdict = (await GeminiClient.ReadTextAsync(classifyResp)).Trim();
+            needsSearch = verdict.StartsWith("SEARCH", StringComparison.OrdinalIgnoreCase);
+            Console.WriteLine($"[Gemini] needsSearch={needsSearch} ({verdict})");
+          }
         }
-      };
 
-      var classifyJson = JsonSerializer.Serialize(classifyBody);
-      var classifyUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={apiKey}";
-      var classifyResp = await _httpClient.PostAsync(classifyUrl, new StringContent(classifyJson, Encoding.UTF8, "application/json"));
+        // ② Switch between models and requests based on the evaluation result
+        object body = needsSearch
+          ? new
+          {
+            system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
+            contents = new[] { new { parts = new[] { new { text = question } } } },
+            tools = new[] { new { google_search = new { } } }
+          }
+          : new
+          {
+            system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
+            contents = new[] { new { parts = new[] { new { text = question } } } }
+          };
 
-      var needsSearch = false;
-      if (classifyResp.IsSuccessStatusCode)
-      {
-        using var classifyDoc = JsonDocument.Parse(await classifyResp.Content.ReadAsStringAsync());
-        var verdict = classifyDoc.RootElement
-          .GetProperty("candidates")[0]
-          .GetProperty("content")
-          .GetProperty("parts")[0]
-          .GetProperty("text")
-          .GetString() ?? "";
-        var trimmed = verdict.Trim();
-        needsSearch = trimmed.Equals("SEARCH", StringComparison.OrdinalIgnoreCase)
-                   || trimmed.StartsWith("SEARCH", StringComparison.OrdinalIgnoreCase);
-        Console.WriteLine($"[Gemini] needsSearch={needsSearch} ({verdict.Trim()})");
-      }
+        using var response = await GeminiClient.PostAsync(needsSearch ? GeminiModels.FlashSearch : GeminiModels.Main, body);
 
-      // ② Switch between models and requests based on the evaluation result
-      string answerJson;
-      string answerUrl;
-
-      if (needsSearch)
-      {
-        var body = new
+        if (!response.IsSuccessStatusCode)
         {
-          system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
-          contents = new[] { new { parts = new[] { new { text = question } } } },
-          tools = new[] { new { google_search = new { } } }
-        };
-        answerJson = JsonSerializer.Serialize(body);
-        answerUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.FlashSearch}:generateContent?key={apiKey}";
+          var errorBody = await response.Content.ReadAsStringAsync();
+          Console.WriteLine($"[Gemini] {(int)response.StatusCode} Error: {errorBody}");
+          return (GeminiClient.IsBusy(response.StatusCode)
+            ? GeminiClient.BusyMessage
+            : "⚠️ Gemini API returned an error. Please try again later.", false);
+        }
+
+        var answer = await GeminiClient.ReadTextAsync(response);
+        return (string.IsNullOrEmpty(answer) ? "No response." : answer, needsSearch);
       }
-      else
+      catch (TaskCanceledException)
       {
-        var body = new
-        {
-          system_instruction = new { parts = new[] { new { text = SystemPrompt } } },
-          contents = new[] { new { parts = new[] { new { text = question } } } }
-        };
-        answerJson = JsonSerializer.Serialize(body);
-        answerUrl = $"{GeminiModels.BaseUrl}/{GeminiModels.Flash}:generateContent?key={apiKey}";
+        Console.WriteLine("[Gemini] Question request timed out.");
+        return ("That took too long to answer ⏱️ — try asking again.", false);
       }
-
-      var response = await _httpClient.PostAsync(answerUrl, new StringContent(answerJson, Encoding.UTF8, "application/json"));
-
-      if (!response.IsSuccessStatusCode)
-      {
-        var errorBody = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"[Gemini] {(int)response.StatusCode} Error: {errorBody}");
-        return ("⚠️ Gemini API returned an error. Please try again later.", false);
-      }
-
-      var resultJson = await response.Content.ReadAsStringAsync();
-      using var doc = JsonDocument.Parse(resultJson);
-
-      return (doc.RootElement
-        .GetProperty("candidates")[0]
-        .GetProperty("content")
-        .GetProperty("parts")[0]
-        .GetProperty("text")
-        .GetString() ?? "No response.", needsSearch);
     }
   }
 

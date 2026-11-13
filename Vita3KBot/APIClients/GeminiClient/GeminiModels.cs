@@ -8,13 +8,18 @@ namespace Vita3KBot.APIClients.GeminiClient
     // Base URL for the Generative Language API
     public const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
-    // General-purpose model used for standard responses, classification, log analysis, etc.
-    public const string Flash = "gemini-3.8-flash";
+    // General-purpose model used for standard responses, classification, log analysis, #help answers, etc.
+    public const string Main = "gemini-4-hydrogen";
 
     // Model used when Google Search grounding is required
     public const string FlashSearch = "gemini-2.5-flash";
 
-    // Lightweight model used for classification tasks (e.g. piracy detection)
+    // Lightweight model used for classification tasks (e.g. piracy detection),
+    // and as the fallback when Hydrogen or a Flash model times out.
     public const string FlashLite = "gemini-3.5-flash-lite";
+
+    // Flash models time out often, so they get the shortest deadline before falling back to Flash-Lite.
+    public static bool IsFlash(string model) =>
+      model.Contains("-flash", System.StringComparison.OrdinalIgnoreCase) && model != FlashLite;
   }
 }

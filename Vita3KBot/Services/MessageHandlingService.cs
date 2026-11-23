@@ -695,6 +695,10 @@ namespace Vita3KBot.Services
 
     private const string HelpChannelName = "help";
 
+    // Disabled for now: Hydrogen's #help answers aren't reliable enough yet. Flip to true to turn them back on.
+    // (static readonly rather than const, so the code below doesn't trip the unreachable-code warning.)
+    private static readonly bool HelpAutoAnswerEnabled = false;
+
     // One answer per user per window, so a question split over several messages gets a single reply.
     private static readonly TimeSpan HelpAnswerCooldown = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentDictionary<ulong, DateTime> _lastHelpAnswer = new();
@@ -707,6 +711,11 @@ namespace Vita3KBot.Services
 
     private static async Task MonitorHelpQuestions(SocketUserMessage msg, SocketGuildUser guildUser)
     {
+      if (!HelpAutoAnswerEnabled)
+      {
+        return;
+      }
+
       if (guildUser.IsBot || guildUser.IsWebhook || RolesUtils.IsWhitelisted(guildUser))
       {
         return; // staff answer people themselves
